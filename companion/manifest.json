@@ -1,0 +1,26 @@
+{
+	"id": "monday-board-sync",
+	"name": "monday-board-sync",
+	"shortname": "monday-sync",
+	"description": "Queries monday.com boards to update custom variables and local files.",
+	"version": "0.0.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/bitfocus/companion-monday-board-sync.git",
+	"bugs": "https://github.com/bitfocus/companion-monday-board-sync/issues",
+	"maintainers": [
+		{
+			"name": "Charles Webb",
+			"email": "charles@automatonsolutions.net"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Automaton Solutions",
+	"products": ["Technical Services"],
+	"keywords": []
+}
