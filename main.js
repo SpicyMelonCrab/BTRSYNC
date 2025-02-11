@@ -35,25 +35,25 @@ class ModuleInstance extends InstanceBase {
 			'stream-address-n': 'Unknown',
 			'board-sync-status': 'Unsynced',
 			'last-board-sync': 'Never',
-			'percent-completion-threshold': '0',
-			'current-presentation-name-c': 'Unknown',
-			'current-presentation-presenter-c': 'Unknown',
-			'percent-presentation-timeslot-c': '0',
-			'current-presentation-name-p': 'Unknown',
-			'current-presentation-presenter-p': 'Unknown',
-			'percent-presentation-timeslot-p': '0',
-			'current-presentation-name-n': 'Unknown',
-			'current-presentation-presenter-n': 'Unknown',
-			'percent-presentation-timeslot-n': '0',
-			'synced-project-overview-item-id': 'Unknown'
+			'current-presentation-completion-percent': '0',
+			'presentation-name-c': 'Unknown',
+			'presentation-presenter-c': 'Unknown',
+			'presentation-timeslot-c': '0',
+			'presentation-name-p': 'Unknown',
+			'presentation-presenter-p': 'Unknown',
+			'presentation-timeslot-p': '0',
+			'presentation-name-n': 'Unknown',
+			'presentation-presenter-n': 'Unknown',
+			'presentation-timeslot-n': '0',
+			'synced-project-overview-item-id': 'Unknown',
+			'synced-room-info-board' : 'unknown',
+			'synced-presentation-management-board': 'unknown'
 		});
 		
 		 // Collect information on all Kits.
 		 await this.getKits();
-		
-		// SET POLLING RAGE AND BEIGN QUERYING
-		const pollingRate = config['polling-rate-minutes'] || 30;
-    	this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), pollingRate*1000*60);
+
+    	this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000); // Sets 'synced-project-overview-item-id' 
 	}
 	
 	async destroy() {
@@ -63,24 +63,34 @@ class ModuleInstance extends InstanceBase {
 		if (this.repeatingBoardQuery) {
 			clearInterval(this.repeatingBoardQuery);
 		}
+		if (this.mondaySyncInterval) { // Ensure it's cleared
+			clearInterval(this.mondaySyncInterval);
+		}
 	}
 	
 
 	async configUpdated(config) {
 		this.config = config;
-		
-		if (this.repeatingBoardQuery) {
-			clearInterval(this.repeatingBoardQuery);
+	
+		// Stop any existing syncing process
+		if (this.syncingProcessInterval) {
+			clearInterval(this.syncingProcessInterval);
+			this.syncingProcessInterval = null;
 		}
 	
-		// ✅ Reset lastSyncedProjectId to force a re-query after config changes
-		this.lastSyncedProjectId = null;
-	
-		await this.getKits();
-	
-		const pollingRate = config['polling-rate-minutes'] || .5;
-		this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), pollingRate*1000*60);
+		// Restart finding synced project
+		if (!this.lastSyncedProjectId) {
+			await this.getKits();
+			this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000);
+		} else {
+			this.log('info', `Skipping re-initialization since project is already synced: ${this.lastSyncedProjectId}`);
+			
+			// Restart syncing process
+			this.startSyncingProcess();
+		}
 	}
+	
+	
 	
 	
 	
@@ -303,13 +313,9 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async findSyncedProjectOverview() {
-		// ✅ Prevent redundant queries if we already found a synced project
+		// ✅ If we've already found a synced project, stop running
 		if (this.lastSyncedProjectId) {
 			this.log('info', `Skipping redundant query. Last synced project: ${this.lastSyncedProjectId}`);
-			
-			// ✅ Ensure variable stays updated
-			this.setVariableValues({ 'synced-project-overview-item-id': this.lastSyncedProjectId });
-	
 			return this.lastSyncedProjectId;
 		}
 	
@@ -331,7 +337,7 @@ class ModuleInstance extends InstanceBase {
 	
 			// Step 3: Iterate through projects and check for 'Project Board ID'
 			for (const project of projects) {
-				const projectBoardIdField = project.fields.find(field => field.title === 'Project Board ID');
+				const projectBoardIdField = project.fields.find(field => field.id === 'text_mkn1gxxq'); //PROJECT OVERVIEW BOARD ID
 	
 				if (projectBoardIdField && projectBoardIdField.text && projectBoardIdField.text !== "N/A") {
 					const projectBoardId = projectBoardIdField.text.trim();
@@ -345,17 +351,131 @@ class ModuleInstance extends InstanceBase {
 							// Query the first item itself
 							const itemDetails = await this.queryMondayItem(projectItems[0].id);
 	
-							// Step 5: Check for a synced project
-							const foundSyncedProject = await this.checkForSyncedProject(itemDetails, selectedKit);
+							if (!itemDetails) {
+								this.log('warn', `No details retrieved for item ID ${projectItems[0].id}`);
+								return null;
+							}
 	
-							if (foundSyncedProject) {
-								this.lastSyncedProjectId = foundSyncedProject.id; // ✅ Store last found project
-	
-								// ✅ Store in the module's variables so it's visible in the UI
-								this.setVariableValues({ 'synced-project-overview-item-id': foundSyncedProject.id });
+							// ✅ Check if status_mkmwnf9d is "Syncing"
+							const syncStatusField = itemDetails.fields.find(field => field.id === 'status_mkmwnf9d');
+							if (!syncStatusField || syncStatusField.text !== "Syncing") {
+								this.log('warn', `Project ${itemDetails.id} is not in 'Syncing' state. Status: '${syncStatusField ? syncStatusField.text : 'N/A'}'. Skipping.`);
+								return null; // ❌ Do not proceed
+							}
 
+							// ✅ Log raw values of all fields in itemDetails
+							//this.log('info', `Raw Values of itemDetails: ${JSON.stringify(itemDetails.fields.map(f => ({ id: f.id, title: f.title, raw_value: f.raw_value })), null, 2)}`);
+							// ✅ Extract relevant IDs from itemDetails
+							const tempVariables = {
+								'presentation-mngr-id': null,
+								'dashboard-id': null,
+								'project-id': null,
+								'help-requests-id': null,
+								'room-info-id': null,
+								'project-logistics-id': null
+							};
+
+							// ✅ Map field IDs to variable names
+							const fieldMappings = {
+								'text_mkmnf1qw': 'presentation-mngr-id',
+								'text_mkmnbbe0': 'dashboard-id',
+								'text_mkmvqye8': 'project-id',
+								'text_mkmnbyjx': 'help-requests-id',
+								'text_mkmntkc7': 'room-info-id',
+								'text_mkmn3pq2': 'project-logistics-id'
+							};
+
+							// ✅ Extract values and store them in tempVariables
+							itemDetails.fields.forEach(field => {
+								if (fieldMappings[field.id] && field.raw_value !== "N/A") {
+									tempVariables[fieldMappings[field.id]] = field.raw_value.replace(/"/g, ''); // Remove extra quotes
+								}
+							});
+
+							// ✅ Log extracted values for debugging
+							//this.log('info', `Temporary Stored Variables: ${JSON.stringify(tempVariables, null, 2)}`);
+
+							// ✅ Now we can reference `tempVariables` throughout the method as needed.
+
+							// Extract 'text_mkmntkc7' field (Room Info Board ID)
+							const roomInfoField = itemDetails.fields.find(field => field.id === 'text_mkmntkc7');
 	
-								return foundSyncedProject; // ✅ Return the matched project (name & ID)
+							if (roomInfoField) {
+								const roomInfoBoard = roomInfoField.text || 'Unknown';
+								this.setVariableValues({ 'synced-room-info-board': roomInfoBoard });
+	
+								this.log('info', `Room Info Board Identified: ${roomInfoBoard}`);
+	
+								// Query the Room Info Board
+								if (!isNaN(roomInfoBoard) && roomInfoBoard.trim() !== '') {
+									this.log('info', `Querying Room Info Board (ID: ${roomInfoBoard})...`);
+									const roomBoardItems = await this.queryMondayBoard(roomInfoBoard);
+	
+									if (!roomBoardItems || roomBoardItems.length === 0) {
+										this.log('warn', `No items found on Room Info Board (ID: ${roomInfoBoard}).`);
+										return null;
+									}
+	
+									// ✅ Collect 'Kit Assigned' values
+									let kitAssignedValues = [];
+									roomBoardItems.forEach((item) => {
+										const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
+	
+										if (kitAssignedField) {
+											try {
+												const rawData = JSON.parse(kitAssignedField.raw_value);
+												if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
+													const linkedKitIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
+													kitAssignedValues.push(...linkedKitIds);
+												}
+											} catch (error) {
+												this.log('error', `Error parsing 'Kit Assigned' for item ${item.id}: ${error.message}`);
+											}
+										}
+									});
+	
+									// ✅ Log the collected 'Kit Assigned' values
+									this.log('info', `Collected 'Kit Assigned' values: ${kitAssignedValues.join(", ")}`);
+	
+									// ✅ Check if any of the collected Kit IDs match the selected Kit
+									const matchingKit = kitAssignedValues.find(kitId => kitId.toString() === selectedKit.toString());
+	
+									if (matchingKit) {
+										const matchedProjectId = projectItems[0].id;
+									
+										// ✅ Store the matched project ID and related board IDs
+										this.setVariableValues({
+											'synced-project-overview-item-id': matchedProjectId,
+											'synced-room-info-board': tempVariables['room-info-id'], // ✅ Set to Room Info Board ID
+											'synced-presentation-management-board': tempVariables['presentation-mngr-id'] // ✅ Set to Presentation Manager ID
+										});
+									
+										this.lastSyncedProjectId = matchedProjectId;
+									
+										this.log('info', `Match found! Kit ${matchingKit} is assigned to project ${matchedProjectId}.`);
+										this.log('info', `synced-room-info-board set to: ${tempVariables['room-info-id']}`);
+										this.log('info', `synced-presentation-management-board set to: ${tempVariables['presentation-mngr-id']}`);
+									
+										// ✅ Stop running future queries
+										if (this.repeatingBoardQuery) {
+											clearInterval(this.repeatingBoardQuery);
+											this.repeatingBoardQuery = null;
+											this.log('info', `Stopped further queries after finding a match.`);
+										}
+									
+										// ✅ Start the syncing process
+										this.startSyncingProcess();  // <-- ADD THIS LINE
+									
+										return matchedProjectId; // ✅ Return the matched project item ID
+									}else {
+										this.log('warn', "No matching Kit Assigned found for the selected kit.");
+										return null;
+									}
+								} else {
+									this.log('error', `Invalid Room Info Board ID: '${roomInfoBoard}'. Skipping query.`);
+								}
+							} else {
+								this.log('warn', "Field 'text_mkmntkc7' not found in item details.");
 							}
 						} else {
 							this.log('warn', `No items found on project board ${projectBoardId}`);
@@ -368,88 +488,243 @@ class ModuleInstance extends InstanceBase {
 	
 			this.log('warn', 'No valid projects with a Project Board ID found.');
 			return null;
-	
 		} catch (error) {
 			this.log('error', `Error in findSyncedProjectOverview: ${error.message}`);
 			return null;
 		}
 	}
 	
+	startSyncingProcess() {
+		const projectOverviewId = this.getVariableValue('synced-project-overview-item-id');
+		const roomInfoBoardId = this.getVariableValue('synced-room-info-board');
+		const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
+	
+		if (!projectOverviewId || projectOverviewId === 'Unknown') {
+			this.log('warn', 'Cannot start syncing process. synced-project-overview-item-id is not set.');
+			return;
+		}
+	
+		if (!presentationManagementBoardId || presentationManagementBoardId === 'Unknown') {
+			this.log('warn', 'Cannot start syncing process. synced-presentation-management-board is not set.');
+			return;
+		}
+	
+		// Clear existing interval if already running
+		if (this.syncingProcessInterval) {
+			clearInterval(this.syncingProcessInterval);
+		}
+	
+		// Fetch polling rate (convert minutes to milliseconds)
+		const pollingRateMinutes = this.config['polling-rate-minutes'] || 1;
+		const pollingRateMs = pollingRateMinutes * 60 * 1000;
+	
+		this.log('info', `Starting syncing process. Polling every ${pollingRateMinutes} minute(s).`);
+	
+		// Run syncEvent immediately before setting the interval
+		this.syncEvent();
+	
+		// Set interval to call syncEvent at the configured rate
+		this.syncingProcessInterval = setInterval(() => {
+			this.syncEvent();
+		}, pollingRateMs);
+	}
+
+	
+	async syncEvent() {
+		const projectOverviewId = this.getVariableValue('synced-project-overview-item-id');
+		const roomInfoBoardId = this.getVariableValue('synced-room-info-board');
+		const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
+	
+		this.log('info', `\nBase Values Seeded:\nproject-overview: ${projectOverviewId}\nroom-info: ${roomInfoBoardId}\npresentation-management: ${presentationManagementBoardId}`);
+	
+		if (!presentationManagementBoardId || presentationManagementBoardId === 'Unknown') {
+			this.log('warn', 'Presentation Management Board ID is not set. Skipping query.');
+			return;
+		}
+	
+		try {
+			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
+			const presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
+	
+			if (!presentationBoardItems || presentationBoardItems.length === 0) {
+				this.log('warn', `No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
+				return;
+			}
+	
+			// Capture the local time
+			const now = new Date();
+			this.log('info', `Current Time (Local Machine): ${now.toLocaleString()}`);
+	
+			let previousPresentation = null;
+			let currentPresentation = null;
+			let nextPresentation = null;
+	
+			// Process and structure presentations
+			let presentations = presentationBoardItems.map((item) => {
+				const startTime = this.parseTime(this.getFieldValue(item.fields, "hour__1"));
+				const endTime = this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1"));
+	
+				return {
+					id: item.id,
+					name: item.name,
+					presenter: this.getFieldValue(item.fields, "text__1"),
+					designation: this.getFieldValue(item.fields, "text9__1"),
+					sessionDate: this.getFieldValue(item.fields, "date__1"),
+					startTime,
+					endTime,
+					allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
+					record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
+					stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
+					streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
+				};
+			});
+	
+			// Sort presentations by start time (earliest first)
+			presentations = presentations.filter(p => p.startTime && p.endTime);
+			presentations.sort((a, b) => a.startTime - b.startTime);
+	
+			// Assign previous, current, and next presentations
+			for (let i = 0; i < presentations.length; i++) {
+				const presentation = presentations[i];
+	
+				if (presentation.startTime <= now && now < presentation.endTime) {
+					// Found the current presentation
+					currentPresentation = presentation;
+					previousPresentation = i > 0 ? presentations[i - 1] : null;
+					nextPresentation = i + 1 < presentations.length ? presentations[i + 1] : null;
+					break;
+				} else if (presentation.startTime > now) {
+					// No current presentation found yet, so this is the next
+					nextPresentation = presentation;
+					previousPresentation = i > 0 ? presentations[i - 1] : null;
+					break;
+				} else {
+					// This presentation already ended, so it becomes the previous one
+					previousPresentation = presentation;
+				}
+			}
+	
+			// Log identified presentations
+			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
+			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
+			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
+	
+			// Calculate completion percentage only for the current presentation
+			const completionPercent = currentPresentation
+				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
+				: "0";
+	
+			// Update Companion variables
+			this.setVariableValues({
+				// Previous Presentation
+				'presentation-name-p': previousPresentation ? previousPresentation.name : 'Unknown',
+				'presentation-presenter-p': previousPresentation ? previousPresentation.presenter : 'Unknown',
+				'presentation-timeslot-p': previousPresentation
+					? `${this.formatTime(previousPresentation.startTime)} - ${this.formatTime(previousPresentation.endTime)}`
+					: 'Unknown',
+				'allow-demo-p': previousPresentation ? previousPresentation.allowDemo : 'Unknown',
+				'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
+				'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
+				'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+	
+				// Current Presentation
+				'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
+				'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
+				'presentation-timeslot-c': currentPresentation
+					? `${this.formatTime(currentPresentation.startTime)} - ${this.formatTime(currentPresentation.endTime)}`
+					: 'Unknown',
+				'current-presentation-completion-percent': completionPercent,
+				'allow-demo-c': currentPresentation ? currentPresentation.allowDemo : 'Unknown',
+				'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
+				'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
+				'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+	
+				// Next Presentation
+				'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
+				'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
+				'presentation-timeslot-n': nextPresentation
+					? `${this.formatTime(nextPresentation.startTime)} - ${this.formatTime(nextPresentation.endTime)}`
+					: 'Unknown',
+				'allow-demo-n': nextPresentation ? nextPresentation.allowDemo : 'Unknown',
+				'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
+				'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
+				'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
+	
+				// Board Sync Status
+				'board-sync-status': 'Synced',
+				'last-board-sync': now.toLocaleString()
+			});
+	
+		} catch (error) {
+			this.log('error', `Error querying Presentation Management Board: ${error.message}`);
+		}
+	}
+	
 	
 	
 	/**
-	 * Checks if any subitem's linkedPulseId matches the selected kit.
+	 * Converts checkbox values from Monday:
+	 * - `"v"` -> `"Yes"`
+	 * - `"N/A"` -> `"No"`
 	 */
-	async checkForSyncedProject(itemDetails, selectedKit) {
-		if (!selectedKit) {
-			this.log('error', 'No kit is selected, skipping comparison.');
-			return null;
+	convertCheckboxValue(value) {
+		return value === "v" ? "Yes" : "No";
+	}
+	
+	/**
+	 * Helper function to get field value by ID
+	 */
+	getFieldValue(fields, fieldId) {
+		const field = fields.find(f => f.id === fieldId);
+		return field ? field.text : "N/A";
+	}
+	
+	/**
+	 * Parses time in format "hh:mm AM/PM" and returns a Date object
+	 */
+	parseTime(timeStr) {
+		if (!timeStr || timeStr === "N/A") return null;
+		const now = new Date();
+		const [time, modifier] = timeStr.split(" ");
+		let [hours, minutes] = time.split(":").map(Number);
+	
+		if (modifier === "PM" && hours !== 12) {
+			hours += 12;
+		} else if (modifier === "AM" && hours === 12) {
+			hours = 0;
 		}
 	
-		this.log('info', `Selected Kit: ${selectedKit}`);
+		now.setHours(hours, minutes, 0, 0);
+		return now;
+	}
 	
-		// Look for subitems field
-		const subitemsField = itemDetails.fields.find(field => field.id === 'subitems_mkm5ngss');
-		if (!subitemsField || !subitemsField.raw_value) {
-			this.log('warn', `No subitems found for item ${itemDetails.id}`);
-			return null;
-		}
+	/**
+	 * Formats time in "HH:MM AM/PM" format
+	 */
+	formatTime(date) {
+		if (!date) return "Unknown";
+		const hours = date.getHours();
+		const minutes = date.getMinutes().toString().padStart(2, "0");
+		const ampm = hours >= 12 ? "PM" : "AM";
+		const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
+		return `${formattedHours}:${minutes} ${ampm}`;
+	}
 	
-		const subitemsData = JSON.parse(subitemsField.raw_value);
-	
-		if (!subitemsData.linkedPulseIds || subitemsData.linkedPulseIds.length === 0) {
-			this.log('warn', `No linkedPulseIds found in subitems for item ${itemDetails.id}`);
-			return null;
-		}
-	
-		for (const subitem of subitemsData.linkedPulseIds) {
-			const subItemId = subitem.linkedPulseId;
-	
-			this.log('info', `Checking subitem linkedPulseId: ${subItemId}`);
-	
-			// Retrieve full details of the subitem
-			const subItemDetails = await this.queryMondayItem(subItemId);
-			if (!subItemDetails) {
-				this.log('warn', `Failed to retrieve details for subitem ${subItemId}`);
-				continue;
-			}
-	
-			// Log each field of the subitem
-			this.log('info', `Subitem Retrieved: ${subItemDetails.name} (ID: ${subItemDetails.id})`);
-			for (const field of subItemDetails.fields) {
-				this.log('info', `  - Field: ${field.title} | Value: ${field.text}`);
-			}
-	
-			// 🔍 Check if `connect_boards_mkmnw0dz` has linkedPulseIds inside its raw_value
-			const linkedBoardsField = subItemDetails.fields.find(field => field.id === 'connect_boards_mkmnw0dz');
-			if (linkedBoardsField && linkedBoardsField.raw_value) {
-				try {
-					const linkedBoardsData = JSON.parse(linkedBoardsField.raw_value);
-					if (linkedBoardsData.linkedPulseIds) {
-						for (const linkedPulse of linkedBoardsData.linkedPulseIds) {
-							const linkedPulseId = linkedPulse.linkedPulseId;
-							this.log('info', `🔍 Found linkedPulseId inside connect_boards_mkmnw0dz: ${linkedPulseId}`);
-	
-							// Compare with selected kit
-							if (linkedPulseId.toString() === selectedKit.toString()) {
-								this.log('info', `✅ Synced Project Found! Project Name: ${itemDetails.name}, Project ID: ${itemDetails.id}`);
-								return { name: itemDetails.name, id: itemDetails.id };
-							}
-						}
-					}
-				} catch (error) {
-					this.log('error', `Error parsing raw_value for connect_boards_mkmnw0dz: ${error.message}`);
-				}
-			}
-		}
-	
-		this.log('warn', 'No matching linkedPulseId found for the selected kit.');
-		return null;
+	/**
+	 * Calculates the percentage of completion for the current presentation
+	 */
+	calculateProgress(startTime, endTime) {
+		if (!startTime || !endTime) return "0";
+		const now = new Date();
+		const totalDuration = endTime - startTime;
+		const elapsed = now - startTime;
+		return ((elapsed / totalDuration) * 100).toFixed(2);
 	}
 	
 	
 	
 	
+
 	updateActions() {
 		UpdateActions(this)
 	}

@@ -17,16 +17,19 @@ module.exports = function (self) {
 		{ variableId: 'stream-address-n', name: 'Stream Address (Next)' },
 		{ variableId: 'board-sync-status', name: 'Board Sync Status' },
 		{ variableId: 'last-board-sync', name: 'Last Board Sync' },
-		{ variableId: 'percent-completion-threshold', name: '% Completion Threshold' },
-		{ variableId: 'current-presentation-name-c', name: 'Presentation Name' },
-		{ variableId: 'current-presentation-presenter-c', name: 'Presenter' },
-		{ variableId: 'percent-presentation-timeslot-c', name: 'Timeslot' },
-		{ variableId: 'current-presentation-name-p', name: 'Presentation Name (Previous)' },
-		{ variableId: 'current-presentation-presenter-p', name: 'Presenter (Previous)' },
-		{ variableId: 'percent-presentation-timeslot-p', name: 'Timeslot (Previous)' },
-		{ variableId: 'current-presentation-name-n', name: 'Presentation Name (Next)' },
-		{ variableId: 'current-presentation-presenter-n', name: 'Presenter (Next)' },
-		{ variableId: 'percent-presentation-timeslot-n', name: 'Timeslot (Next)' },
-		{ variableId: 'synced-project-overview-item-id', name: 'Synced Project Overview ID' }
+		{ variableId: 'current-presentation-completion-percent', name: 'Current Presentation % Complete' },
+		{ variableId: 'presentation-name-c', name: 'Presentation Name' },
+		{ variableId: 'presentation-presenter-c', name: 'Presenter' },
+		{ variableId: 'presentation-timeslot-c', name: 'Timeslot' },
+		{ variableId: 'presentation-name-p', name: 'Presentation Name (Previous)' },
+		{ variableId: 'presentation-presenter-p', name: 'Presenter (Previous)' },
+		{ variableId: 'presentation-timeslot-p', name: 'Timeslot (Previous)' },
+		{ variableId: 'presentation-name-n', name: 'Presentation Name (Next)' },
+		{ variableId: 'presentation-presenter-n', name: 'Presenter (Next)' },
+		{ variableId: 'presentation-timeslot-n', name: 'Timeslot (Next)' },
+		{ variableId: 'synced-project-overview-item-id', name: 'Synced Project Overview ID' },
+		{ variableId: 'synced-room-info-board', name: 'Synced Room Info Board' },
+		{ variableId: 'synced-presentation-management-board', name: 'Synced Pres. Mgmt Board' }
+
 	])
 }
