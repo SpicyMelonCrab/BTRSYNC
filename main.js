@@ -22,7 +22,9 @@ class ModuleInstance extends InstanceBase {
 	
 		// SET DEFAULT VARIABLES ON FIRST RUN
 		this.setVariableValues({
-			'current_presentation_file_path' : 'Unknown',
+			'presentation_file_path-p' : 'Unknown',
+			'presentation_file_path-c' : 'Unknown',
+			'presentation_file_path-n' : 'Unknown',
 			'allow-demo-p': 'Unknown',
 			'allow-demo-c': 'Unknown',
 			'allow-demo-n': 'Unknown',
@@ -36,7 +38,6 @@ class ModuleInstance extends InstanceBase {
 			'stream-address-c': 'Unknown',
 			'stream-address-n': 'Unknown',
 			'board-sync-status': 'Unsynced',
-			'last-board-sync': 'Never',
 			'current-presentation-completion-percent': '0',
 			'presentation-name-c': 'Unknown',
 			'presentation-presenter-c': 'Unknown',
@@ -48,6 +49,7 @@ class ModuleInstance extends InstanceBase {
 			'presentation-presenter-n': 'Unknown',
 			'presentation-timeslot-n': '0',
 			'synced-project-overview-item-id': 'Unknown',
+			'last-board-sync': 'Never',
 			'synced-room-info-board' : 'unknown',
 			'synced-presentation-management-board': 'unknown',
 			'my-room': "Unknown"
@@ -65,7 +67,9 @@ class ModuleInstance extends InstanceBase {
 		// Clear the interval when the instance is destroyed
 		if (this.repeatingBoardQuery) {
 			clearInterval(this.repeatingBoardQuery);
+			this.repeatingBoardQuery = null;
 		}
+		
 		if (this.mondaySyncInterval) { // Ensure it's cleared
 			clearInterval(this.mondaySyncInterval);
 		}
@@ -92,10 +96,6 @@ class ModuleInstance extends InstanceBase {
 			this.startSyncingProcess();
 		}
 	}
-	
-	
-	
-	
 	
 
 	async queryMondayBoard(boardId) {
@@ -571,16 +571,45 @@ class ModuleInstance extends InstanceBase {
 			return;
 		}
 	
+		const myRoomId = this.getVariableValue('my-room') || 'Unknown';
+		if (myRoomId === 'Unknown') {
+			this.log('warn', 'No room assigned (my-room is Unknown). Skipping query.');
+			return;
+		}
+		this.log('info', `Filtering presentations for Room ID: ${myRoomId}`);
+	
 		try {
 			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
 			const presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-			// PRINT OUT ALL PRESENTATION BOARD ITEMS FOR DEBUG PURPOSES
-			//this.log('info', `Raw Presentation Board Items: ${JSON.stringify(presentationBoardItems, null, 2)}`);
-
-
-
+	
 			if (!presentationBoardItems || presentationBoardItems.length === 0) {
 				this.log('warn', `No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
+				return;
+			}
+	
+			// Filter out presentations that do not belong to `my-room`
+			const filteredPresentations = presentationBoardItems.filter(item => {
+				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
+	
+				if (!roomInfoField || roomInfoField.raw_value === "N/A") {
+					return false; // Exclude items with no valid room info
+				}
+	
+				try {
+					const rawData = JSON.parse(roomInfoField.raw_value);
+					if (!rawData.linkedPulseIds || rawData.linkedPulseIds.length === 0) {
+						return false; // No linked rooms
+					}
+					const linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId;
+					return linkedRoomId.toString() === myRoomId.toString(); // ✅ Keep only matching room
+				} catch (error) {
+					this.log('error', `Error parsing Room Info for item ${item.id}: ${error.message}`);
+					return false; // Exclude on error
+				}
+			});
+	
+			if (filteredPresentations.length === 0) {
+				this.log('warn', `No presentations found for Room ID: ${myRoomId}`);
 				return;
 			}
 	
@@ -588,123 +617,87 @@ class ModuleInstance extends InstanceBase {
 			const now = new Date();
 			this.log('info', `Current Time (Local Machine): ${now.toLocaleString()}`);
 	
+			// ✅ Get today's date in YYYY-MM-DD format
+			const todayDate = new Date().toISOString().split('T')[0];
+	
+			// ✅ Filter presentations to only include those happening TODAY
+			const todayPresentations = filteredPresentations.filter(p => {
+				const sessionDate = this.getFieldValue(p.fields, "date__1");
+				return sessionDate && sessionDate === todayDate;
+			});
+	
+			// ✅ Remove presentations missing start or end times
+			const validPresentations = todayPresentations.map((item) => ({
+				id: item.id,
+				name: item.name,
+				presenter: this.getFieldValue(item.fields, "text__1"),
+				designation: this.getFieldValue(item.fields, "text9__1"),
+				sessionDate: this.getFieldValue(item.fields, "date__1"),
+				startTime: this.parseTime(this.getFieldValue(item.fields, "hour__1")),
+				endTime: this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1")),
+				allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
+				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
+				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
+				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
+			})).filter(p => p.startTime && p.endTime);
+	
+			// ✅ Sort presentations by start time (earliest first)
+			validPresentations.sort((a, b) => a.startTime - b.startTime);
+	
+			if (validPresentations.length === 0) {
+				this.log('warn', `No valid presentations scheduled for today in Room ID: ${myRoomId}`);
+				return;
+			}
+	
+			// Assign previous, current, and next presentations
 			let previousPresentation = null;
 			let currentPresentation = null;
 			let nextPresentation = null;
 	
-			const myRoomId = this.getVariableValue('my-room') || 'Unknown';
-
-			// ✅ Log retrieved `my-room` before filtering
-			this.log('info', `Retrieved my-room ID for filtering: ${myRoomId}`);
-
-
-			// ✅ Get today's date in YYYY-MM-DD format
-			const todayDate = new Date().toISOString().split('T')[0];
-
-			this.log('info', `Filtering presentations for Room ID: ${myRoomId} and Date: ${todayDate}`);
-
-			// ✅ Capture and process presentations
-			let presentations = presentationBoardItems.map((item) => {
-				const startTime = this.parseTime(this.getFieldValue(item.fields, "hour__1"));
-				const endTime = this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1"));
-				const sessionDate = this.getFieldValue(item.fields, "date__1");
-
-				// ✅ Extract the 'Room Info' field (connect_boards_mkn2244w)
-				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
-
-				let linkedRoomId = null;
-				if (roomInfoField && roomInfoField.raw_value !== "N/A") {
-					try {
-						const rawData = JSON.parse(roomInfoField.raw_value);
-						if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
-							linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId; // ✅ Extract the first linked room ID
-						}
-					} catch (error) {
-						this.log('error', `Error parsing Room Info for presentation ${item.id}: ${error.message}`);
-					}
-				}
-
-				return {
-					id: item.id,
-					name: item.name,
-					presenter: this.getFieldValue(item.fields, "text__1"),
-					designation: this.getFieldValue(item.fields, "text9__1"),
-					sessionDate,
-					startTime,
-					endTime,
-					roomInfoLinkedId: linkedRoomId, // ✅ Store the linked Room ID for filtering
-					allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
-					record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
-					stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
-					streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
-				};
-			});
-
-			// ✅ Filter presentations to keep only those linked to `my-room`
-			presentations = presentations.filter(p => p.roomInfoLinkedId && p.roomInfoLinkedId.toString() === myRoomId.toString());
-
-			// ✅ Filter presentations to only include those happening TODAY
-			presentations = presentations.filter(p => p.sessionDate && p.sessionDate === todayDate);
-
-			// ✅ Remove presentations missing start or end times
-			presentations = presentations.filter(p => p.startTime && p.endTime);
-
-			// ✅ Sort presentations by start time (earliest first)
-			presentations.sort((a, b) => a.startTime - b.startTime);
-
-			// ✅ Log filtered & sorted presentations
-			//this.log('info', `Filtered & Sorted Presentations for Today: ${JSON.stringify(presentations, null, 2)}`);
-
-	
-			// Inside syncEvent method, modify the presentation assignment logic:
-
 			const completionThreshold = this.config['completion-percent-threshold'] || 35; // Get threshold from config
-
-			// Assign previous, current, and next presentations
-			for (let i = 0; i < presentations.length; i++) {
-				const presentation = presentations[i];
-
+	
+			for (let i = 0; i < validPresentations.length; i++) {
+				const presentation = validPresentations[i];
+	
 				if (presentation.startTime <= now && now < presentation.endTime) {
 					// Only check completion percentage if there's a next presentation available
-					if (i + 1 < presentations.length) {
+					if (i + 1 < validPresentations.length) {
 						const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
-						
+	
 						if (parseFloat(completionPercent) > completionThreshold) {
-							this.log('info', `Presentation "${presentation.name}" completion percentage of ${completionPercent}% exceeds threshold of ${completionThreshold}%, presentation considered complete.`);
-							
+							this.log('info', `Presentation "${presentation.name}" completion percentage of ${completionPercent}% exceeds threshold of ${completionThreshold}%, skipping to next.`);
+	
 							previousPresentation = presentation;
-							currentPresentation = presentations[i + 1];
-							nextPresentation = i + 2 < presentations.length ? presentations[i + 2] : null;
+							currentPresentation = validPresentations[i + 1];
+							nextPresentation = i + 2 < validPresentations.length ? validPresentations[i + 2] : null;
 							break;
 						}
 					}
-
+	
 					// If no next presentation or threshold not exceeded, use normal assignment
 					currentPresentation = presentation;
-					previousPresentation = i > 0 ? presentations[i - 1] : null;
-					nextPresentation = i + 1 < presentations.length ? presentations[i + 1] : null;
+					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
+					nextPresentation = i + 1 < validPresentations.length ? validPresentations[i + 1] : null;
 					break;
 				} else if (presentation.startTime > now) {
-					// No current presentation found yet, so this is the next
 					nextPresentation = presentation;
-					previousPresentation = i > 0 ? presentations[i - 1] : null;
+					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
 					break;
 				} else {
-					// This presentation already ended, so it becomes the previous one
 					previousPresentation = presentation;
 				}
 			}
-				
+	
 			// Log identified presentations
-			//const completionThreshold = this.config['completion-percent-threshold'] || 35;
 			const completionPercent = currentPresentation 
 				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
 				: "0";
-
+	
 			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
 			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
 			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
-			
+	
+			// Update Companion variables
 			// Update Companion variables
 			this.setVariableValues({
 				// Previous Presentation
@@ -717,7 +710,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
 				'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
 				'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
-	
+
 				// Current Presentation
 				'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
 				'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
@@ -729,7 +722,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
 				'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
 				'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
-	
+
 				// Next Presentation
 				'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
 				'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
@@ -740,16 +733,20 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 				'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 				'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
-	
+
 				// Board Sync Status
 				'board-sync-status': 'Synced',
 				'last-board-sync': now.toLocaleString()
 			});
+
 	
 		} catch (error) {
 			this.log('error', `Error querying Presentation Management Board: ${error.message}`);
 		}
 	}
+	
+
+	
 	
 	
 	
@@ -759,16 +756,30 @@ class ModuleInstance extends InstanceBase {
 	 * - `"N/A"` -> `"No"`
 	 */
 	convertCheckboxValue(value) {
-		return value === "v" ? "Yes" : "No";
+		this.log('debug', `Converting checkbox value: ${value}`);
+	
+		if (!value || value === "N/A" || value === "false" || value === "0" || value === "") {
+			return "No"; // Default to "No" if checkbox is missing or explicitly unchecked
+		}
+	
+		if (value === "v" || value === "true" || value === "1" || value === "✔") {
+			return "Yes";
+		}
+	
+		return "Unknown"; // Fallback case (should rarely happen)
 	}
+	
+	
 	
 	/**
 	 * Helper function to get field value by ID
 	 */
 	getFieldValue(fields, fieldId) {
 		const field = fields.find(f => f.id === fieldId);
+		//this.log('info', `Getting field value for ${fieldId}: ${field ? field.text : "N/A"}`);
 		return field ? field.text : "N/A";
 	}
+	
 	
 	/**
 	 * Parses time in format "hh:mm AM/PM" and returns a Date object
@@ -811,8 +822,7 @@ class ModuleInstance extends InstanceBase {
 		const elapsed = now - startTime;
 		return ((elapsed / totalDuration) * 100).toFixed(2);
 	}
-	
-	
+
 
 
 	updateActions() {

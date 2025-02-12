@@ -1,7 +1,8 @@
 module.exports = function (self) {
 	self.setVariableDefinitions([
-
-		{ variableId: 'current_presentation_file_path', name: '' },
+		{ variableId: 'presentation_file_path-p', name: 'Presentation Path (Previous)' },
+		{ variableId: 'presentation_file_path-c', name: 'Presentation Path (Current)' },
+		{ variableId: 'presentation_file_path-n', name: 'Presentation Path (Next)' },
 		{ variableId: 'allow-demo-p', name: 'Allow Demo (Previous)' },
 		{ variableId: 'allow-demo-p', name: 'Allow Demo (Previous)' },
 		{ variableId: 'allow-demo-c', name: 'Allow Demo' },
