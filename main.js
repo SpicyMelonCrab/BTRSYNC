@@ -3,6 +3,8 @@ const UpgradeScripts = require('./upgrades')
 const UpdateActions = require('./actions')
 const UpdateFeedbacks = require('./feedbacks')
 const UpdateVariableDefinitions = require('./variables')
+const fs = require('fs');
+const path = require('path');
 
 class ModuleInstance extends InstanceBase {
 	constructor(internal) {
@@ -259,6 +261,15 @@ class ModuleInstance extends InstanceBase {
 				label: 'Monday API Token',
 				width: 12,
 				'default': undefined
+			},
+			{
+				id: 'completion-percent-threshold',
+				type: 'number',
+				label: 'Completion Percent Threshold',
+				default: 35,
+				width: 12,
+				min: 10,
+				max: 100
 			},
 			{
 				id: 'polling-rate-minutes',
@@ -645,12 +656,30 @@ class ModuleInstance extends InstanceBase {
 			//this.log('info', `Filtered & Sorted Presentations for Today: ${JSON.stringify(presentations, null, 2)}`);
 
 	
+			// Inside syncEvent method, modify the presentation assignment logic:
+
+			const completionThreshold = this.config['completion-percent-threshold'] || 35; // Get threshold from config
+
 			// Assign previous, current, and next presentations
 			for (let i = 0; i < presentations.length; i++) {
 				const presentation = presentations[i];
-	
+
 				if (presentation.startTime <= now && now < presentation.endTime) {
-					// Found the current presentation
+					// Only check completion percentage if there's a next presentation available
+					if (i + 1 < presentations.length) {
+						const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
+						
+						if (parseFloat(completionPercent) > completionThreshold) {
+							this.log('info', `Presentation "${presentation.name}" completion percentage of ${completionPercent}% exceeds threshold of ${completionThreshold}%, presentation considered complete.`);
+							
+							previousPresentation = presentation;
+							currentPresentation = presentations[i + 1];
+							nextPresentation = i + 2 < presentations.length ? presentations[i + 2] : null;
+							break;
+						}
+					}
+
+					// If no next presentation or threshold not exceeded, use normal assignment
 					currentPresentation = presentation;
 					previousPresentation = i > 0 ? presentations[i - 1] : null;
 					nextPresentation = i + 1 < presentations.length ? presentations[i + 1] : null;
@@ -665,17 +694,17 @@ class ModuleInstance extends InstanceBase {
 					previousPresentation = presentation;
 				}
 			}
-	
+				
 			// Log identified presentations
+			//const completionThreshold = this.config['completion-percent-threshold'] || 35;
+			const completionPercent = currentPresentation 
+				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
+				: "0";
+
 			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
 			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
 			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
-	
-			// Calculate completion percentage only for the current presentation
-			const completionPercent = currentPresentation
-				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
-				: "0";
-	
+			
 			// Update Companion variables
 			this.setVariableValues({
 				// Previous Presentation
