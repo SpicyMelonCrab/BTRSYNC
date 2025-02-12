@@ -1,0 +1,87 @@
+{
+  "timestamp": "2025-02-12T22:26:16.006Z",
+  "lastBoardSync": "2/12/2025, 5:26:15 PM",
+  "syncedRoomInfoBoard": "8458034331",
+  "syncedPresentationManagementBoard": "8458036323",
+  "myRoom": "8458056072",
+  "presentations": [
+    {
+      "id": "8458064138",
+      "name": "Presentation 1",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    },
+    {
+      "id": "8458064938",
+      "name": "Presentation 2",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    },
+    {
+      "id": "8458066650",
+      "name": "Presentation 3",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    },
+    {
+      "id": "8466355822",
+      "name": "Presentation 4",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    },
+    {
+      "id": "8466360319",
+      "name": "Presentation 5",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    },
+    {
+      "id": "8468078162",
+      "name": "Presentation 6",
+      "presenter": "Unknown",
+      "designation": "Unknown",
+      "sessionDate": "Unknown",
+      "startTime": "Unknown",
+      "endTime": "Unknown",
+      "allowDemo": "Unknown",
+      "record": "Unknown",
+      "stream": "Unknown",
+      "streamAddress": "Unknown"
+    }
+  ]
+}

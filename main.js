@@ -739,6 +739,7 @@ class ModuleInstance extends InstanceBase {
 				'last-board-sync': now.toLocaleString()
 			});
 
+			this.writeSyncDataToFile(filteredPresentations);
 	
 		} catch (error) {
 			this.log('error', `Error querying Presentation Management Board: ${error.message}`);
@@ -756,19 +757,10 @@ class ModuleInstance extends InstanceBase {
 	 * - `"N/A"` -> `"No"`
 	 */
 	convertCheckboxValue(value) {
-		this.log('debug', `Converting checkbox value: ${value}`);
+		this.log('debug', `🔍 Converting checkbox value: ${JSON.stringify(value)}`);
 	
-		if (!value || value === "N/A" || value === "false" || value === "0" || value === "") {
-			return "No"; // Default to "No" if checkbox is missing or explicitly unchecked
-		}
-	
-		if (value === "v" || value === "true" || value === "1" || value === "✔") {
-			return "Yes";
-		}
-	
-		return "Unknown"; // Fallback case (should rarely happen)
+		return value === "v" ? "Yes" : "No";
 	}
-	
 	
 	
 	/**
@@ -776,16 +768,28 @@ class ModuleInstance extends InstanceBase {
 	 */
 	getFieldValue(fields, fieldId) {
 		const field = fields.find(f => f.id === fieldId);
-		//this.log('info', `Getting field value for ${fieldId}: ${field ? field.text : "N/A"}`);
-		return field ? field.text : "N/A";
+		
+		if (!field) {
+		//	this.log('warn', `⚠ Field '${fieldId}' not found in item fields.`);
+			return "Unknown";
+		}
+	
+		if (!field.text || field.text === "N/A") {
+		//	this.log('warn', `⚠ Field '${fieldId}' exists but has 'N/A' value.`);
+			return "Unknown";
+		}
+	
+		return field.text;
 	}
+	
 	
 	
 	/**
 	 * Parses time in format "hh:mm AM/PM" and returns a Date object
 	 */
 	parseTime(timeStr) {
-		if (!timeStr || timeStr === "N/A") return null;
+		if (!timeStr || timeStr === "N/A") return "Unknown";
+	
 		const now = new Date();
 		const [time, modifier] = timeStr.split(" ");
 		let [hours, minutes] = time.split(":").map(Number);
@@ -797,8 +801,13 @@ class ModuleInstance extends InstanceBase {
 		}
 	
 		now.setHours(hours, minutes, 0, 0);
+		
+		// Log to verify if time is correctly parsed
+		this.log('info', `✅ Parsed time '${timeStr}' to: ${now}`);
+	
 		return now;
 	}
+	
 	
 	/**
 	 * Formats time in "HH:MM AM/PM" format
@@ -823,7 +832,82 @@ class ModuleInstance extends InstanceBase {
 		return ((elapsed / totalDuration) * 100).toFixed(2);
 	}
 
+	// SAVING // CACHING SYSTEM
+	writeSyncDataToFile(filteredPresentations) {
+		try {
 
+			 // 📌 Log the full array of filtered presentations before processing
+			 this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
+
+			// Ensure `filteredPresentations` is an array before proceeding
+			if (!Array.isArray(filteredPresentations) || filteredPresentations.length === 0) {
+				this.log('error', '❌ Invalid or empty data: filteredPresentations is not an array.');
+				return;
+			}
+	
+			// 📌 Determine the global storage path based on OS
+			let baseDir;
+			if (process.platform === 'win32') {
+				baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+			} else {
+				baseDir = path.join('/var/lib', 'BitCompanionSync'); // Linux/Mac
+			}
+	
+			// 📌 Ensure the directory exists
+			if (!fs.existsSync(baseDir)) {
+				fs.mkdirSync(baseDir, { recursive: true });
+				this.log('info', `📂 Created global directory: ${baseDir}`);
+			}
+	
+			// 📌 Define the file path inside the global directory
+			const filePath = path.join(baseDir, 'presentation_sync_data.json');
+	
+			// 📌 Prepare the export data
+			// Extract correct values from fields
+			const exportData = {
+				timestamp: new Date().toISOString(),
+				lastBoardSync: this.getVariableValue('last-board-sync') || "Unknown",
+				syncedRoomInfoBoard: this.getVariableValue('synced-room-info-board') || "Unknown",
+				syncedPresentationManagementBoard: this.getVariableValue('synced-presentation-management-board') || "Unknown",
+				myRoom: this.getVariableValue('my-room') || "Unknown",
+				presentations: filteredPresentations.map(presentation => {
+					return {
+						id: presentation.id || "Unknown",
+						name: presentation.name || "Unknown",
+						presenter: this.getFieldValue(presentation.fields, "text__1"),
+						designation: this.getFieldValue(presentation.fields, "text9__1"),
+						sessionDate: this.getFieldValue(presentation.fields, "date__1"),
+						startTime: this.parseTime(this.getFieldValue(presentation.fields, "hour__1")),
+						endTime: this.parseTime(this.getFieldValue(presentation.fields, "dup__of_start_time__1")),
+						allowDemo: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "checkbox__1")),
+						record: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "dup__of_allow_demo__1")),
+						stream: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "dup__of_allow_records__1")),
+						streamAddress: this.getFieldValue(presentation.fields, "dup__of_notes__1")
+					};
+				})
+			};
+
+	
+			// 📌 Debugging: Log first presentation object for troubleshooting
+			if (exportData.presentations.length > 0) {
+				//this.log('info', `🛠 First Presentation Object for Debugging: ${JSON.stringify(exportData.presentations[0], null, 2)}`);
+			} else {
+				//this.log('warn', `⚠ No presentations to save.`);
+			}
+	
+			// 📌 Write the data to a JSON file
+			fs.writeFile(filePath, JSON.stringify(exportData, null, 2), (err) => {
+				if (err) {
+					this.log('error', `❌ Failed to write sync data file: ${err.message}`);
+				} else {
+					this.log('info', `✅ Sync data successfully written to ${filePath}`);
+				}
+			});
+		} catch (error) {
+			this.log('error', `❌ Unexpected error in writeSyncDataToFile: ${error.message}`);
+		}
+	}
+	
 
 	updateActions() {
 		UpdateActions(this)
