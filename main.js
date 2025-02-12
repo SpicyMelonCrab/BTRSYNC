@@ -47,7 +47,8 @@ class ModuleInstance extends InstanceBase {
 			'presentation-timeslot-n': '0',
 			'synced-project-overview-item-id': 'Unknown',
 			'synced-room-info-board' : 'unknown',
-			'synced-presentation-management-board': 'unknown'
+			'synced-presentation-management-board': 'unknown',
+			'my-room': "Unknown"
 		});
 		
 		 // Collect information on all Kits.
@@ -419,6 +420,7 @@ class ModuleInstance extends InstanceBase {
 									// ✅ Collect 'Kit Assigned' values
 									let kitAssignedValues = [];
 									let matchedRoomId = null;  // ✅ Store the matched room ID
+									this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
 
 									roomBoardItems.forEach((item) => {
 										const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
@@ -431,8 +433,11 @@ class ModuleInstance extends InstanceBase {
 													kitAssignedValues.push(...linkedKitIds);
 
 													// ✅ Check if any linked Kit ID matches the selected kit
-													if (linkedKitIds.includes(selectedKit.toString())) {
+													if (linkedKitIds.includes(parseInt(selectedKit))) {
 														matchedRoomId = item.id; // ✅ Store the matched room ID
+									
+														// ✅ Log the matched Room ID
+														this.log('info', `Matched Room Found! Room ID: ${matchedRoomId} for Kit: ${selectedKit}`);
 													}
 
 												}
@@ -458,7 +463,11 @@ class ModuleInstance extends InstanceBase {
 											'synced-presentation-management-board': tempVariables['presentation-mngr-id'], // ✅ Set to Presentation Manager ID
 											'my-room': matchedRoomId || 'Unknown' // ✅ Store the matched Room ID
 										});
-									
+
+										// ✅ Log when `my-room` is assigned
+										this.log('info', `Assigned Room ID to my-room: ${matchedRoomId}`);
+
+
 										this.lastSyncedProjectId = matchedProjectId;
 									
 										this.log('info', `Match found! Kit ${matchingKit} is assigned to project ${matchedProjectId}.`);
@@ -554,7 +563,11 @@ class ModuleInstance extends InstanceBase {
 		try {
 			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
 			const presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-	
+			// PRINT OUT ALL PRESENTATION BOARD ITEMS FOR DEBUG PURPOSES
+			//this.log('info', `Raw Presentation Board Items: ${JSON.stringify(presentationBoardItems, null, 2)}`);
+
+
+
 			if (!presentationBoardItems || presentationBoardItems.length === 0) {
 				this.log('warn', `No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
 				return;
@@ -568,29 +581,69 @@ class ModuleInstance extends InstanceBase {
 			let currentPresentation = null;
 			let nextPresentation = null;
 	
-			// Process and structure presentations
+			const myRoomId = this.getVariableValue('my-room') || 'Unknown';
+
+			// ✅ Log retrieved `my-room` before filtering
+			this.log('info', `Retrieved my-room ID for filtering: ${myRoomId}`);
+
+
+			// ✅ Get today's date in YYYY-MM-DD format
+			const todayDate = new Date().toISOString().split('T')[0];
+
+			this.log('info', `Filtering presentations for Room ID: ${myRoomId} and Date: ${todayDate}`);
+
+			// ✅ Capture and process presentations
 			let presentations = presentationBoardItems.map((item) => {
 				const startTime = this.parseTime(this.getFieldValue(item.fields, "hour__1"));
 				const endTime = this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1"));
-	
+				const sessionDate = this.getFieldValue(item.fields, "date__1");
+
+				// ✅ Extract the 'Room Info' field (connect_boards_mkn2244w)
+				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
+
+				let linkedRoomId = null;
+				if (roomInfoField && roomInfoField.raw_value !== "N/A") {
+					try {
+						const rawData = JSON.parse(roomInfoField.raw_value);
+						if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
+							linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId; // ✅ Extract the first linked room ID
+						}
+					} catch (error) {
+						this.log('error', `Error parsing Room Info for presentation ${item.id}: ${error.message}`);
+					}
+				}
+
 				return {
 					id: item.id,
 					name: item.name,
 					presenter: this.getFieldValue(item.fields, "text__1"),
 					designation: this.getFieldValue(item.fields, "text9__1"),
-					sessionDate: this.getFieldValue(item.fields, "date__1"),
+					sessionDate,
 					startTime,
 					endTime,
+					roomInfoLinkedId: linkedRoomId, // ✅ Store the linked Room ID for filtering
 					allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
 					record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
 					stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
 					streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
 				};
 			});
-	
-			// Sort presentations by start time (earliest first)
+
+			// ✅ Filter presentations to keep only those linked to `my-room`
+			presentations = presentations.filter(p => p.roomInfoLinkedId && p.roomInfoLinkedId.toString() === myRoomId.toString());
+
+			// ✅ Filter presentations to only include those happening TODAY
+			presentations = presentations.filter(p => p.sessionDate && p.sessionDate === todayDate);
+
+			// ✅ Remove presentations missing start or end times
 			presentations = presentations.filter(p => p.startTime && p.endTime);
+
+			// ✅ Sort presentations by start time (earliest first)
 			presentations.sort((a, b) => a.startTime - b.startTime);
+
+			// ✅ Log filtered & sorted presentations
+			//this.log('info', `Filtered & Sorted Presentations for Today: ${JSON.stringify(presentations, null, 2)}`);
+
 	
 			// Assign previous, current, and next presentations
 			for (let i = 0; i < presentations.length; i++) {

@@ -29,7 +29,8 @@ module.exports = function (self) {
 		{ variableId: 'presentation-timeslot-n', name: 'Timeslot (Next)' },
 		{ variableId: 'synced-project-overview-item-id', name: 'Synced Project Overview ID' },
 		{ variableId: 'synced-room-info-board', name: 'Synced Room Info Board' },
-		{ variableId: 'synced-presentation-management-board', name: 'Synced Pres. Mgmt Board' }
+		{ variableId: 'synced-presentation-management-board', name: 'Synced Pres. Mgmt Board' },
+		{ variableId: 'my-room', name: 'My Assigned Room Monday ID' }
 
 	])
 }
