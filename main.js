@@ -418,6 +418,8 @@ class ModuleInstance extends InstanceBase {
 	
 									// ✅ Collect 'Kit Assigned' values
 									let kitAssignedValues = [];
+									let matchedRoomId = null;  // ✅ Store the matched room ID
+
 									roomBoardItems.forEach((item) => {
 										const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
 	
@@ -427,6 +429,12 @@ class ModuleInstance extends InstanceBase {
 												if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
 													const linkedKitIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
 													kitAssignedValues.push(...linkedKitIds);
+
+													// ✅ Check if any linked Kit ID matches the selected kit
+													if (linkedKitIds.includes(selectedKit.toString())) {
+														matchedRoomId = item.id; // ✅ Store the matched room ID
+													}
+
 												}
 											} catch (error) {
 												this.log('error', `Error parsing 'Kit Assigned' for item ${item.id}: ${error.message}`);
@@ -447,7 +455,8 @@ class ModuleInstance extends InstanceBase {
 										this.setVariableValues({
 											'synced-project-overview-item-id': matchedProjectId,
 											'synced-room-info-board': tempVariables['room-info-id'], // ✅ Set to Room Info Board ID
-											'synced-presentation-management-board': tempVariables['presentation-mngr-id'] // ✅ Set to Presentation Manager ID
+											'synced-presentation-management-board': tempVariables['presentation-mngr-id'], // ✅ Set to Presentation Manager ID
+											'my-room': matchedRoomId || 'Unknown' // ✅ Store the matched Room ID
 										});
 									
 										this.lastSyncedProjectId = matchedProjectId;
@@ -722,8 +731,7 @@ class ModuleInstance extends InstanceBase {
 	}
 	
 	
-	
-	
+
 
 	updateActions() {
 		UpdateActions(this)
