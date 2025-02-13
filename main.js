@@ -569,12 +569,6 @@ class ModuleInstance extends InstanceBase {
 		// Check if auto-sync is enabled
 		const autoSyncStatus = this.getVariableValue('auto-sync') || 'enabled';
 		
-		// Prevent syncing when time-mode is disabled
-		const timeMode = this.getVariableValue('time-mode') || 'enabled';
-		if (timeMode === 'disabled') {
-			this.log('info', 'Time Mode is disabled. syncEvent will not run.');
-			return;
-		}
 		if (autoSyncStatus === 'disabled') {
 			this.log('info', 'Auto-Sync is disabled. Running offlineSyncEvent instead.');
 			await this.offlineSyncEvent();
@@ -656,6 +650,12 @@ class ModuleInstance extends InstanceBase {
 				}
 			}
 			
+			// Prevent syncing when time-mode is disabled
+			const timeMode = this.getVariableValue('time-mode') || 'enabled';
+			if (timeMode === 'disabled') {
+				this.log('info', 'Time Mode is disabled. Presentation List updated, variables will not be updated to match time.');
+				return;
+			}
 			// Log identified presentations
 			const completionPercent = calculatedCompletionPercent;
 			
@@ -1089,7 +1089,7 @@ class ModuleInstance extends InstanceBase {
 		}
 	}
 
-	    // 📌 Add updatePresentationPosition() HERE inside the class
+	    // 📌 Add updatePresentationPosition() Update Presentation Position based on current time. (To be used when time-mode is disabled to determine current presentation.)
 		async updatePresentationPosition() {
 			try {
 				// 📌 Determine the file path based on OS
@@ -1164,6 +1164,113 @@ class ModuleInstance extends InstanceBase {
 			}
 		}
 	
+		// AFTER UPDATING the presentation position while time-mode is disabled, this will set the variables of all previous/current/next presentations to match the chosen position. 
+		async setManualPresentationPosition() {
+			try {
+				const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
+				const myRoomId = this.getVariableValue('my-room') || 'Unknown';
+				let validPresentations = [];
+		
+				// Try to get presentations from API first
+				try {
+					validPresentations = await this.getTodaysPresentations(presentationManagementBoardId, myRoomId);
+				} catch (error) {
+					this.log('info', `Failed to get presentations from API, falling back to cache: ${error.message}`);
+					
+					// Read from cache if API fails
+					try {
+						// Determine file path based on OS
+						let baseDir;
+						if (process.platform === 'win32') {
+							baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+						} else {
+							baseDir = path.join('/var/lib', 'BitCompanionSync');
+						}
+						const filePath = path.join(baseDir, 'presentation_sync_data.json');
+						
+						const fileContent = fs.readFileSync(filePath, 'utf-8');
+						const cachedData = JSON.parse(fileContent);
+						validPresentations = cachedData.presentations;
+						
+						// Filter for today's presentations
+						const todayDate = new Date().toISOString().split('T')[0];
+						validPresentations = validPresentations.filter(p => p.sessionDate === todayDate);
+						
+						if (!validPresentations || validPresentations.length === 0) {
+							throw new Error('No valid presentations found in cache for today');
+						}
+					} catch (error) {
+						this.log('error', `Failed to read from cache: ${error.message}`);
+						return;
+					}
+				}
+		
+				// Get the position value
+				const position = parseInt(this.getVariableValue('time-mode-disabled-presentation-position')) || 1;
+				this.log('info', `Setting presentation position to: ${position}`);
+		
+				// Validate position
+				if (position < 1 || position > validPresentations.length) {
+					this.log('error', `Invalid position ${position}. Must be between 1 and ${validPresentations.length}`);
+					return;
+				}
+		
+				// Get previous, current, and next presentations based on position
+				const currentIndex = position - 1;
+				const currentPresentation = validPresentations[currentIndex];
+				const previousPresentation = currentIndex > 0 ? validPresentations[currentIndex - 1] : null;
+				const nextPresentation = currentIndex < validPresentations.length - 1 ? validPresentations[currentIndex + 1] : null;
+		
+				// Log the selections
+				this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
+				this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
+				this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
+		
+				// Update Companion variables
+				this.setVariableValues({
+					// Previous Presentation
+					'presentation-name-p': previousPresentation ? previousPresentation.name : 'Unknown',
+					'presentation-presenter-p': previousPresentation ? previousPresentation.presenter : 'Unknown',
+					'presentation-timeslot-p': previousPresentation
+						? `${this.formatTime(previousPresentation.startTime)} - ${this.formatTime(previousPresentation.endTime)}`
+						: 'Unknown',
+					'allow-demo-p': previousPresentation ? previousPresentation.allowDemo : 'Unknown',
+					'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
+					'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
+					'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+		
+					// Current Presentation
+					'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
+					'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
+					'presentation-timeslot-c': currentPresentation
+						? `${this.formatTime(currentPresentation.startTime)} - ${this.formatTime(currentPresentation.endTime)}`
+						: 'Unknown',
+					'current-presentation-completion-percent': "0", // Manual position doesn't use completion percent
+					'allow-demo-c': currentPresentation ? currentPresentation.allowDemo : 'Unknown',
+					'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
+					'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
+					'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+		
+					// Next Presentation
+					'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
+					'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
+					'presentation-timeslot-n': nextPresentation
+						? `${this.formatTime(nextPresentation.startTime)} - ${this.formatTime(nextPresentation.endTime)}`
+						: 'Unknown',
+					'allow-demo-n': nextPresentation ? nextPresentation.allowDemo : 'Unknown',
+					'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
+					'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
+					'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
+		
+					// Board Sync Status
+					'board-sync-status': 'Manual Position',
+					'last-board-sync': new Date().toLocaleString()
+				});
+		
+			} catch (error) {
+				this.log('error', `Error in setManualPresentationPosition: ${error.message}`);
+			}
+		}
 	
 
 	updateActions() {
