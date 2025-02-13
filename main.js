@@ -566,6 +566,22 @@ class ModuleInstance extends InstanceBase {
 
 	
 	async syncEvent() {
+
+		// Check if auto-sync is enabled
+        const autoSyncStatus = this.getVariableValue('auto-sync') || 'enabled';
+        
+		// Prevent syncing when time-mode is disabled
+		const timeMode = this.getVariableValue('time-mode') || 'enabled';
+		if (timeMode === 'disabled') {
+			this.log('info', 'Time Mode is disabled. syncEvent will not run.');
+			return;
+		}
+        if (autoSyncStatus === 'disabled') {
+            this.log('info', 'Auto-Sync is disabled. Running offlineSyncEvent instead.');
+            await this.offlineSyncEvent();
+            return;
+        }
+
 		const projectOverviewId = this.getVariableValue('synced-project-overview-item-id');
 		const roomInfoBoardId = this.getVariableValue('synced-room-info-board');
 		const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
@@ -661,6 +677,8 @@ class ModuleInstance extends InstanceBase {
 				this.log('warn', `No valid presentations scheduled for today in Room ID: ${myRoomId}`);
 				return;
 			}
+
+			this.writeSyncDataToFile(validPresentations);
 	
 			// Assign previous, current, and next presentations
 			let previousPresentation = null;
@@ -758,8 +776,6 @@ class ModuleInstance extends InstanceBase {
 				'board-sync-status': 'Synced',
 				'last-board-sync': now.toLocaleString()
 			});
-
-			this.writeSyncDataToFile(filteredPresentations);
 	
 		} catch (error) {
 			this.log('error', `Error querying Presentation Management Board: ${error.message}`);
@@ -993,7 +1009,7 @@ class ModuleInstance extends InstanceBase {
 		try {
 
 			 // 📌 Log the full array of filtered presentations before processing (FOR DEBUGGING)
-			 //this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
+			 this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
 
 			// Ensure `filteredPresentations` is an array before proceeding
 			if (!Array.isArray(filteredPresentations) || filteredPresentations.length === 0) {
@@ -1030,15 +1046,15 @@ class ModuleInstance extends InstanceBase {
 					return {
 						id: presentation.id || "Unknown",
 						name: presentation.name || "Unknown",
-						presenter: this.getFieldValue(presentation.fields, "text__1"),
-						designation: this.getFieldValue(presentation.fields, "text9__1"),
-						sessionDate: this.getFieldValue(presentation.fields, "date__1"),
-						startTime: this.parseTime(this.getFieldValue(presentation.fields, "hour__1")),
-						endTime: this.parseTime(this.getFieldValue(presentation.fields, "dup__of_start_time__1")),
-						allowDemo: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "checkbox__1")),
-						record: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "dup__of_allow_demo__1")),
-						stream: this.convertCheckboxValue(this.getFieldValue(presentation.fields, "dup__of_allow_records__1")),
-						streamAddress: this.getFieldValue(presentation.fields, "dup__of_notes__1")
+						presenter: presentation.presenter || "Unknown",
+						designation: presentation.designation || "Unknown",
+						sessionDate: presentation.sessionDate || "Unknown",
+						startTime: presentation.startTime,
+						endTime: presentation.endTime,
+						allowDemo: presentation.allowDemo || "Unknown",
+						record: presentation.record || "Unknown",
+						stream: presentation.stream || "Unknown",
+						streamAddress: presentation.streamAddress || "Unknown"
 					};
 				})
 			};
