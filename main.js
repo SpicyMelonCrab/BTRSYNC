@@ -22,6 +22,9 @@ class ModuleInstance extends InstanceBase {
 	
 		// SET DEFAULT VARIABLES ON FIRST RUN
 		this.setVariableValues({
+			'auto-sync' : 'enabled',
+			'time-mode' : 'enabled',
+			'time-mode-disabled-presentation-position' : '1',
 			'presentation_file_path-p' : 'Unknown',
 			'presentation_file_path-c' : 'Unknown',
 			'presentation_file_path-n' : 'Unknown',
@@ -524,6 +527,7 @@ class ModuleInstance extends InstanceBase {
 			return null;
 		}
 	}
+	
 	
 	startSyncingProcess() {
 		const projectOverviewId = this.getVariableValue('synced-project-overview-item-id');
@@ -1059,6 +1063,82 @@ class ModuleInstance extends InstanceBase {
 			this.log('error', `❌ Unexpected error in writeSyncDataToFile: ${error.message}`);
 		}
 	}
+
+	    // 📌 Add updatePresentationPosition() HERE inside the class
+		async updatePresentationPosition() {
+			try {
+				// 📌 Determine the file path based on OS
+				let baseDir;
+				if (process.platform === 'win32') {
+					baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+				} else {
+					baseDir = path.join('/var/lib', 'BitCompanionSync'); // Linux/Mac
+				}
+	
+				const filePath = path.join(baseDir, 'presentation_sync_data.json');
+	
+				// 📌 Read the cached file
+				if (!fs.existsSync(filePath)) {
+					this.log('warn', `⚠ No cached presentation data found. Defaulting presentation position to 1.`);
+					this.setVariableValues({ 'time-mode-disabled-presentation-position': 1 });
+					return;
+				}
+	
+				let cachedData;
+				try {
+					const fileContent = fs.readFileSync(filePath, 'utf-8');
+					cachedData = JSON.parse(fileContent);
+				} catch (error) {
+					this.log('error', `❌ Error reading cached presentation file: ${error.message}`);
+					return;
+				}
+	
+				// 📌 Extract presentations
+				const presentations = cachedData.presentations;
+				if (!Array.isArray(presentations) || presentations.length === 0) {
+					this.log('warn', `⚠ No presentations found in cache.`);
+					this.setVariableValues({ 'time-mode-disabled-presentation-position': 1 });
+					return;
+				}
+	
+				// ✅ Convert start and end times into Date objects
+				presentations.forEach(p => {
+					p.startTime = new Date(p.startTime);
+					p.endTime = new Date(p.endTime);
+				});
+	
+				// ✅ Sort presentations by start time
+				presentations.sort((a, b) => a.startTime - b.startTime);
+	
+				// 📌 Get current local time
+				const now = new Date();
+				this.log('info', `🔍 Current Local Time: ${now.toLocaleString()}`);
+	
+				// 📌 Determine current presentation position
+				let presentationPosition = 1;
+				for (let i = 0; i < presentations.length; i++) {
+					const presentation = presentations[i];
+	
+					if (presentation.startTime <= now && now < presentation.endTime) {
+						// ✅ Found active presentation
+						presentationPosition = i + 1;
+						break;
+					} else if (presentation.startTime > now) {
+						// ✅ Next presentation in sequence
+						presentationPosition = i + 1;
+						break;
+					}
+				}
+	
+				// ✅ Update variable
+				this.setVariableValues({ 'time-mode-disabled-presentation-position': presentationPosition });
+				this.log('info', `✅ Stored Presentation Position: ${presentationPosition}`);
+	
+			} catch (error) {
+				this.log('error', `❌ Unexpected error in updatePresentationPosition: ${error.message}`);
+			}
+		}
+	
 	
 
 	updateActions() {
