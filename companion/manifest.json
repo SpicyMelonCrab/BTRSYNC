@@ -1,7 +1,7 @@
 {
-	"id": "monday-board-sync",
-	"name": "monday-board-sync",
-	"shortname": "monday-sync",
+	"id": "betr-monday-board-sync",
+	"name": "BETR Shows Presentation Sync",
+	"shortname": "BETR Shows",
 	"description": "Queries monday.com boards to update custom variables and local files.",
 	"version": "0.0.0",
 	"license": "MIT",
@@ -20,7 +20,7 @@
 		"entrypoint": "../main.js"
 	},
 	"legacyIds": [],
-	"manufacturer": "Automaton Solutions",
-	"products": ["Technical Services"],
+	"manufacturer": "Presentation Sync",
+	"products": ["Monday Board Sync"],
 	"keywords": []
 }

@@ -1,5 +1,5 @@
 {
-	"name": "monday-board-sync",
+	"name": "betr-monday-board-sync",
 	"version": "0.1.0",
 	"description": "A Companion module for interacting with Monday.com boards",
 	"main": "main.js",

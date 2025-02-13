@@ -1052,7 +1052,7 @@ class ModuleInstance extends InstanceBase {
 				if (err) {
 					this.log('error', `❌ Failed to write sync data file: ${err.message}`);
 				} else {
-					this.log('info', `✅ Sync data successfully written to ${filePath}`);
+					this.log('info', `!! Sync data successfully written to ${filePath}`);
 				}
 			});
 		} catch (error) {
