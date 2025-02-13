@@ -551,7 +551,7 @@ class ModuleInstance extends InstanceBase {
 	
 		// Fetch polling rate (convert minutes to milliseconds)
 		const pollingRateMinutes = this.config['polling-rate-minutes'] || 1;
-		const pollingRateMs = pollingRateMinutes * 60 * 1000;
+		const pollingRateMs = pollingRateMinutes * 200;
 	
 		this.log('info', `Starting syncing process. Polling every ${pollingRateMinutes} minute(s).`);
 	
@@ -566,22 +566,21 @@ class ModuleInstance extends InstanceBase {
 
 	
 	async syncEvent() {
-
 		// Check if auto-sync is enabled
-        const autoSyncStatus = this.getVariableValue('auto-sync') || 'enabled';
-        
+		const autoSyncStatus = this.getVariableValue('auto-sync') || 'enabled';
+		
 		// Prevent syncing when time-mode is disabled
 		const timeMode = this.getVariableValue('time-mode') || 'enabled';
 		if (timeMode === 'disabled') {
 			this.log('info', 'Time Mode is disabled. syncEvent will not run.');
 			return;
 		}
-        if (autoSyncStatus === 'disabled') {
-            this.log('info', 'Auto-Sync is disabled. Running offlineSyncEvent instead.');
-            await this.offlineSyncEvent();
-            return;
-        }
-
+		if (autoSyncStatus === 'disabled') {
+			this.log('info', 'Auto-Sync is disabled. Running offlineSyncEvent instead.');
+			await this.offlineSyncEvent();
+			return;
+		}
+	
 		const projectOverviewId = this.getVariableValue('synced-project-overview-item-id');
 		const roomInfoBoardId = this.getVariableValue('synced-room-info-board');
 		const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
@@ -601,84 +600,14 @@ class ModuleInstance extends InstanceBase {
 		this.log('info', `Filtering presentations for Room ID: ${myRoomId}`);
 	
 		try {
-			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
-			let presentationBoardItems;
-			try {
-				presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-
-				if (!presentationBoardItems || presentationBoardItems.length === 0) {
-					throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
-				}
-			} catch (error) {
-				this.log('error', `❌ API call to Monday.com failed: ${error.message}`);
-				this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
-				return this.offlineSyncEvent(); // ⬅️ Fallback to offline mode
-			}
-
-	
-			// Filter out presentations that do not belong to `my-room`
-			const filteredPresentations = presentationBoardItems.filter(item => {
-				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
-	
-				if (!roomInfoField || roomInfoField.raw_value === "N/A") {
-					return false; // Exclude items with no valid room info
-				}
-	
-				try {
-					const rawData = JSON.parse(roomInfoField.raw_value);
-					if (!rawData.linkedPulseIds || rawData.linkedPulseIds.length === 0) {
-						return false; // No linked rooms
-					}
-					const linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId;
-					return linkedRoomId.toString() === myRoomId.toString(); // ✅ Keep only matching room
-				} catch (error) {
-					this.log('error', `Error parsing Room Info for item ${item.id}: ${error.message}`);
-					return false; // Exclude on error
-				}
-			});
-	
-			if (filteredPresentations.length === 0) {
-				this.log('warn', `No presentations found for Room ID: ${myRoomId}`);
-				return;
-			}
+			const validPresentations = await this.getTodaysPresentations(presentationManagementBoardId, myRoomId);
+			
+			// Write to cache file
+			await this.writeSyncDataToFile(validPresentations);
 	
 			// Capture the local time
 			const now = new Date();
 			this.log('info', `Current Time (Local Machine): ${now.toLocaleString()}`);
-	
-			// ✅ Get today's date in YYYY-MM-DD format
-			const todayDate = new Date().toISOString().split('T')[0];
-	
-			// ✅ Filter presentations to only include those happening TODAY
-			const todayPresentations = filteredPresentations.filter(p => {
-				const sessionDate = this.getFieldValue(p.fields, "date__1");
-				return sessionDate && sessionDate === todayDate;
-			});
-	
-			// ✅ Remove presentations missing start or end times
-			const validPresentations = todayPresentations.map((item) => ({
-				id: item.id,
-				name: item.name,
-				presenter: this.getFieldValue(item.fields, "text__1"),
-				designation: this.getFieldValue(item.fields, "text9__1"),
-				sessionDate: this.getFieldValue(item.fields, "date__1"),
-				startTime: this.parseTime(this.getFieldValue(item.fields, "hour__1")),
-				endTime: this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1")),
-				allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
-				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
-				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
-				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
-			})).filter(p => p.startTime && p.endTime);
-	
-			// ✅ Sort presentations by start time (earliest first)
-			validPresentations.sort((a, b) => a.startTime - b.startTime);
-	
-			if (validPresentations.length === 0) {
-				this.log('warn', `No valid presentations scheduled for today in Room ID: ${myRoomId}`);
-				return;
-			}
-
-			this.writeSyncDataToFile(validPresentations);
 	
 			// Assign previous, current, and next presentations
 			let previousPresentation = null;
@@ -687,7 +616,7 @@ class ModuleInstance extends InstanceBase {
 	
 			const completionThreshold = this.config['completion-percent-threshold'] || 35; // Get threshold from config
 			let calculatedCompletionPercent = "0"; // Default value
-
+	
 			for (let i = 0; i < validPresentations.length; i++) {
 				const presentation = validPresentations[i];
 			
@@ -730,12 +659,10 @@ class ModuleInstance extends InstanceBase {
 			// Log identified presentations
 			const completionPercent = calculatedCompletionPercent;
 			
-	
 			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
 			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
 			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
 	
-			// Update Companion variables
 			// Update Companion variables
 			this.setVariableValues({
 				// Previous Presentation
@@ -748,7 +675,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
 				'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
 				'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
-
+	
 				// Current Presentation
 				'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
 				'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
@@ -760,7 +687,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
 				'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
 				'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
-
+	
 				// Next Presentation
 				'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
 				'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
@@ -771,14 +698,96 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 				'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 				'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
-
+	
 				// Board Sync Status
 				'board-sync-status': 'Synced',
 				'last-board-sync': now.toLocaleString()
 			});
 	
 		} catch (error) {
-			this.log('error', `Error querying Presentation Management Board: ${error.message}`);
+			this.log('error', `Error in syncEvent: ${error.message}`);
+			this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
+			return this.offlineSyncEvent();
+		}
+	}
+
+	async getTodaysPresentations(presentationManagementBoardId, myRoomId) {
+		try {
+			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
+			let presentationBoardItems;
+			try {
+				presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
+	
+				if (!presentationBoardItems || presentationBoardItems.length === 0) {
+					throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
+				}
+			} catch (error) {
+				throw new Error(`API call to Monday.com failed: ${error.message}`);
+			}
+	
+			// Filter out presentations that do not belong to `my-room`
+			const filteredPresentations = presentationBoardItems.filter(item => {
+				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
+	
+				if (!roomInfoField || roomInfoField.raw_value === "N/A") {
+					return false; // Exclude items with no valid room info
+				}
+	
+				try {
+					const rawData = JSON.parse(roomInfoField.raw_value);
+					if (!rawData.linkedPulseIds || rawData.linkedPulseIds.length === 0) {
+						return false; // No linked rooms
+					}
+					const linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId;
+					return linkedRoomId.toString() === myRoomId.toString();
+				} catch (error) {
+					this.log('error', `Error parsing Room Info for item ${item.id}: ${error.message}`);
+					return false;
+				}
+			});
+	
+			if (filteredPresentations.length === 0) {
+				this.log('warn', `No presentations found for Room ID: ${myRoomId}`);
+				return [];
+			}
+	
+			// Get today's date in YYYY-MM-DD format
+			const todayDate = new Date().toISOString().split('T')[0];
+	
+			// Filter presentations to only include those happening TODAY
+			const todayPresentations = filteredPresentations.filter(p => {
+				const sessionDate = this.getFieldValue(p.fields, "date__1");
+				return sessionDate && sessionDate === todayDate;
+			});
+	
+			// Remove presentations missing start or end times
+			const validPresentations = todayPresentations.map((item) => ({
+				id: item.id,
+				name: item.name,
+				presenter: this.getFieldValue(item.fields, "text__1"),
+				designation: this.getFieldValue(item.fields, "text9__1"),
+				sessionDate: this.getFieldValue(item.fields, "date__1"),
+				startTime: this.parseTime(this.getFieldValue(item.fields, "hour__1")),
+				endTime: this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1")),
+				allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
+				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
+				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
+				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
+			})).filter(p => p.startTime && p.endTime);
+	
+			// Sort presentations by start time (earliest first)
+			validPresentations.sort((a, b) => a.startTime - b.startTime);
+	
+			if (validPresentations.length === 0) {
+				this.log('warn', `No valid presentations scheduled for today in Room ID: ${myRoomId}`);
+				return [];
+			}
+	
+			return validPresentations;
+	
+		} catch (error) {
+			this.log('error', `Error in getTodaysPresentations: ${error.message}`);
+			throw error;
 		}
 	}
 	
@@ -1009,7 +1018,7 @@ class ModuleInstance extends InstanceBase {
 		try {
 
 			 // 📌 Log the full array of filtered presentations before processing (FOR DEBUGGING)
-			 this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
+			//this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
 
 			// Ensure `filteredPresentations` is an array before proceeding
 			if (!Array.isArray(filteredPresentations) || filteredPresentations.length === 0) {
