@@ -344,6 +344,8 @@ class ModuleInstance extends InstanceBase {
 			const projects = await this.queryMondayBoard(projectsBoardId);
 			if (!projects || projects.length === 0) {
 				this.log('warn', 'No projects found on the projects board.');
+				this.log('warn', "⚠️ API call failed. Switching to offlineSyncEvent.");
+				this.offlineSyncEvent(); // Fallback to offline sync
 				return null;
 			}
 	
@@ -431,7 +433,7 @@ class ModuleInstance extends InstanceBase {
 									// ✅ Collect 'Kit Assigned' values
 									let kitAssignedValues = [];
 									let matchedRoomId = null;  // ✅ Store the matched room ID
-									this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
+									//this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
 
 									roomBoardItems.forEach((item) => {
 										const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
@@ -580,12 +582,19 @@ class ModuleInstance extends InstanceBase {
 	
 		try {
 			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
-			const presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-	
-			if (!presentationBoardItems || presentationBoardItems.length === 0) {
-				this.log('warn', `No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
-				return;
+			let presentationBoardItems;
+			try {
+				presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
+
+				if (!presentationBoardItems || presentationBoardItems.length === 0) {
+					throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
+				}
+			} catch (error) {
+				this.log('error', `❌ API call to Monday.com failed: ${error.message}`);
+				this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
+				return this.offlineSyncEvent(); // ⬅️ Fallback to offline mode
 			}
+
 	
 			// Filter out presentations that do not belong to `my-room`
 			const filteredPresentations = presentationBoardItems.filter(item => {
@@ -655,29 +664,37 @@ class ModuleInstance extends InstanceBase {
 			let nextPresentation = null;
 	
 			const completionThreshold = this.config['completion-percent-threshold'] || 35; // Get threshold from config
-	
+			let calculatedCompletionPercent = "0"; // Default value
+
 			for (let i = 0; i < validPresentations.length; i++) {
 				const presentation = validPresentations[i];
-	
+			
 				if (presentation.startTime <= now && now < presentation.endTime) {
 					// Only check completion percentage if there's a next presentation available
 					if (i + 1 < validPresentations.length) {
-						const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
-	
-						if (parseFloat(completionPercent) > completionThreshold) {
-							this.log('info', `Presentation "${presentation.name}" completion percentage of ${completionPercent}% exceeds threshold of ${completionThreshold}%, skipping to next.`);
-	
+						calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
+			
+						if (parseFloat(calculatedCompletionPercent) > completionThreshold) {
+							this.log(
+								'info',
+								`Presentation "${presentation.name}" completion percentage of ${calculatedCompletionPercent}% exceeds threshold of ${completionThreshold}%, skipping to next.`
+							);
+			
 							previousPresentation = presentation;
 							currentPresentation = validPresentations[i + 1];
 							nextPresentation = i + 2 < validPresentations.length ? validPresentations[i + 2] : null;
 							break;
 						}
 					}
-	
+			
 					// If no next presentation or threshold not exceeded, use normal assignment
 					currentPresentation = presentation;
 					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
 					nextPresentation = i + 1 < validPresentations.length ? validPresentations[i + 1] : null;
+			
+					// Store the calculated progress for the selected current presentation
+					calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
+			
 					break;
 				} else if (presentation.startTime > now) {
 					nextPresentation = presentation;
@@ -687,11 +704,10 @@ class ModuleInstance extends InstanceBase {
 					previousPresentation = presentation;
 				}
 			}
-	
+			
 			// Log identified presentations
-			const completionPercent = currentPresentation 
-				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
-				: "0";
+			const completionPercent = calculatedCompletionPercent;
+			
 	
 			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
 			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
@@ -746,10 +762,146 @@ class ModuleInstance extends InstanceBase {
 		}
 	}
 	
-
+	async offlineSyncEvent() {
+		this.log('info', `🔄 Running offline sync using cached presentation data...`);
 	
+		// 📌 Determine the file path based on OS
+		let baseDir;
+		if (process.platform === 'win32') {
+			baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+		} else {
+			baseDir = path.join('/var/lib', 'BitCompanionSync'); // Linux/Mac
+		}
 	
+		const filePath = path.join(baseDir, 'presentation_sync_data.json');
 	
+		// 📌 Read the cached file
+		if (!fs.existsSync(filePath)) {
+			this.log('warn', `⚠ Cached presentation data not found. Skipping offline sync.`);
+			return;
+		}
+	
+		let cachedData;
+		try {
+			const fileContent = fs.readFileSync(filePath, 'utf-8');
+			cachedData = JSON.parse(fileContent);
+		} catch (error) {
+			this.log('error', `❌ Error reading cached presentation file: ${error.message}`);
+			return;
+		}
+	
+		// 📌 Extract presentations and room ID
+		const { presentations, myRoom } = cachedData;
+	
+		if (!Array.isArray(presentations) || presentations.length === 0) {
+			this.log('warn', `⚠ No presentations found in cache.`);
+			return;
+		}
+	
+		this.log('info', `✅ Loaded ${presentations.length} presentations from cache.`);
+	
+		// 📌 Get today's date in YYYY-MM-DD format
+		const todayDate = new Date().toISOString().split('T')[0];
+	
+		// 📌 Filter presentations happening today
+		const todayPresentations = presentations.filter(p => p.sessionDate === todayDate);
+	
+		if (todayPresentations.length === 0) {
+			this.log('warn', `⚠ No presentations scheduled for today.`);
+			return;
+		}
+	
+		this.log('info', `📅 Found ${todayPresentations.length} presentations scheduled for today.`);
+	
+		// ✅ Convert start and end times into Date objects
+		todayPresentations.forEach(p => {
+			p.startTime = new Date(p.startTime);
+			p.endTime = new Date(p.endTime);
+		});
+	
+		// ✅ Sort presentations by start time
+		todayPresentations.sort((a, b) => a.startTime - b.startTime);
+	
+		const now = new Date();
+		let previousPresentation = null;
+		let currentPresentation = null;
+		let nextPresentation = null;
+	
+		const completionThreshold = this.config['completion-percent-threshold'] || 35; // Default 35%
+	
+		for (let i = 0; i < todayPresentations.length; i++) {
+			const presentation = todayPresentations[i];
+	
+			if (presentation.startTime <= now && now < presentation.endTime) {
+				// ✅ Check completion percentage
+				if (i + 1 < todayPresentations.length) {
+					const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
+	
+					if (parseFloat(completionPercent) > completionThreshold) {
+						this.log('info', `⏩ Skipping "${presentation.name}" (Completion: ${completionPercent}%) - Moving to next.`);
+						previousPresentation = presentation;
+						currentPresentation = todayPresentations[i + 1];
+						nextPresentation = i + 2 < todayPresentations.length ? todayPresentations[i + 2] : null;
+						break;
+					}
+				}
+	
+				// ✅ Assign normally if threshold is not exceeded
+				currentPresentation = presentation;
+				previousPresentation = i > 0 ? todayPresentations[i - 1] : null;
+				nextPresentation = i + 1 < todayPresentations.length ? todayPresentations[i + 1] : null;
+				break;
+			} else if (presentation.startTime > now) {
+				nextPresentation = presentation;
+				previousPresentation = i > 0 ? todayPresentations[i - 1] : null;
+				break;
+			} else {
+				previousPresentation = presentation;
+			}
+		}
+	
+		this.log('info', `Previous: ${previousPresentation ? previousPresentation.name : "None"}`);
+		this.log('info', `Current: ${currentPresentation ? currentPresentation.name : "None"}`);
+		this.log('info', `Next: ${nextPresentation ? nextPresentation.name : "None"}`);
+	
+		// ✅ Update Companion variables
+		this.setVariableValues({
+			'presentation-name-p': previousPresentation ? previousPresentation.name : 'Unknown',
+			'presentation-presenter-p': previousPresentation ? previousPresentation.presenter : 'Unknown',
+			'presentation-timeslot-p': previousPresentation
+				? `${this.formatTime(previousPresentation.startTime)} - ${this.formatTime(previousPresentation.endTime)}`
+				: 'Unknown',
+			'allow-demo-p': previousPresentation ? previousPresentation.allowDemo : 'Unknown',
+			'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
+			'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
+			'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+	
+			'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
+			'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
+			'presentation-timeslot-c': currentPresentation
+				? `${this.formatTime(currentPresentation.startTime)} - ${this.formatTime(currentPresentation.endTime)}`
+				: 'Unknown',
+			'current-presentation-completion-percent': currentPresentation
+				? this.calculateProgress(currentPresentation.startTime, currentPresentation.endTime)
+				: '0',
+			'allow-demo-c': currentPresentation ? currentPresentation.allowDemo : 'Unknown',
+			'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
+			'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
+			'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+	
+			'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
+			'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
+			'presentation-timeslot-n': nextPresentation
+				? `${this.formatTime(nextPresentation.startTime)} - ${this.formatTime(nextPresentation.endTime)}`
+				: 'Unknown',
+			'allow-demo-n': nextPresentation ? nextPresentation.allowDemo : 'Unknown',
+			'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
+			'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
+			'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown'
+		});
+	
+		this.log('info', `Offline Sync Complete!`);
+	}
 	
 	/**
 	 * Converts checkbox values from Monday:
@@ -803,7 +955,7 @@ class ModuleInstance extends InstanceBase {
 		now.setHours(hours, minutes, 0, 0);
 		
 		// Log to verify if time is correctly parsed
-		this.log('info', `✅ Parsed time '${timeStr}' to: ${now}`);
+		//this.log('info', `✅ Parsed time '${timeStr}' to: ${now}`);
 	
 		return now;
 	}
@@ -836,8 +988,8 @@ class ModuleInstance extends InstanceBase {
 	writeSyncDataToFile(filteredPresentations) {
 		try {
 
-			 // 📌 Log the full array of filtered presentations before processing
-			 this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
+			 // 📌 Log the full array of filtered presentations before processing (FOR DEBUGGING)
+			 //this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
 
 			// Ensure `filteredPresentations` is an array before proceeding
 			if (!Array.isArray(filteredPresentations) || filteredPresentations.length === 0) {
