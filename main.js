@@ -556,7 +556,7 @@ class ModuleInstance extends InstanceBase {
 	
 		// Fetch polling rate (convert minutes to milliseconds)
 		const pollingRateMinutes = this.config['polling-rate-minutes'] || 1;
-		const pollingRateMs = pollingRateMinutes * 200;
+		const pollingRateMs = pollingRateMinutes * 10 * 1000; // CHANGE 10 to 60. 
 	
 		this.log('info', `Starting syncing process. Polling every ${pollingRateMinutes} minute(s).`);
 	
@@ -659,7 +659,9 @@ class ModuleInstance extends InstanceBase {
 			// Prevent syncing when time-mode is disabled
 			const timeMode = this.getVariableValue('time-mode') || 'enabled';
 			if (timeMode === 'disabled') {
+				this.setVariableValues({'last-board-sync': now.toLocaleString()});
 				this.log('info', 'Time Mode is disabled. Presentation List updated, variables will not be updated to match time.');
+				this.checkFeedbacks('last_sync_status');
 				return;
 			}
 	
