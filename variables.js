@@ -1,8 +1,10 @@
 module.exports = function (self) {
 	self.setVariableDefinitions([
 		{ variableId: 'auto-sync', name: 'Auto-Sync'},
-		{ variableId: 'time-mode', name: 'Time Mode'},
+		{ variableId: 'time-mode', name: 'Time Based Presentation Mode'},
 		{ variableId: 'time-mode-disabled-presentation-position', name: 'Presentation Position (Time-Mode Disabled)'},
+		{ variableId: 'current-presentation-actual-start-time', name: 'Current Presentation Actual Start Time'},
+		{ variableId: 'current-presentation-actual-duration', name: 'Current Presentation Actual Duration'},
 		{ variableId: 'presentation_file_path-p', name: 'Presentation Path (Previous)' },
 		{ variableId: 'presentation_file_path-c', name: 'Presentation Path (Current)' },
 		{ variableId: 'presentation_file_path-n', name: 'Presentation Path (Next)' },

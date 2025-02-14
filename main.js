@@ -25,6 +25,8 @@ class ModuleInstance extends InstanceBase {
 			'auto-sync' : 'enabled',
 			'time-mode' : 'enabled',
 			'time-mode-disabled-presentation-position' : '1',
+			'current-presentation-actual-start-time' : 'None',
+			'current-presentation-actual-duration': 'None',
 			'presentation_file_path-p' : 'Unknown',
 			'presentation_file_path-c' : 'Unknown',
 			'presentation_file_path-n' : 'Unknown',
@@ -106,6 +108,8 @@ class ModuleInstance extends InstanceBase {
 	
 		if (!mondayApiToken) {
 			this.log('error', 'Monday API Token is not set. Cannot query board.');
+			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
+			this.checkFeedbacks('last_sync_status');
 			return;
 		}
 	
@@ -147,6 +151,8 @@ class ModuleInstance extends InstanceBase {
 	
 			if (result.errors) {
 				this.log('error', `Error querying board ${boardId}: ${result.errors[0].message}`);
+				this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
+				this.checkFeedbacks('last_sync_status');
 				return;
 			}
 	
@@ -155,33 +161,31 @@ class ModuleInstance extends InstanceBase {
 			if (board) {
 				this.log('info', `Board Retrieved: ${board.name} (ID: ${board.id})`);
 	
-				// Create a mapping of column IDs to column titles
 				const columnMap = {};
 				board.columns.forEach(col => {
 					columnMap[col.id] = col.title;
 				});
 	
-				// Format item data
 				const items = board.items_page.items.map(item => ({
 					id: item.id,
 					name: item.name,
 					fields: item.column_values.map(col => ({
 						id: col.id,
-						title: columnMap[col.id] || col.id, // Get title from column map
-						text: col.text || 'N/A', // Human-readable value
-						raw_value: col.value || 'N/A' // Raw JSON value
+						title: columnMap[col.id] || col.id,
+						text: col.text || 'N/A',
+						raw_value: col.value || 'N/A'
 					}))
 				}));
 	
-				//this.log('info', `Items: ${JSON.stringify(items, null, 2)}`);
-	
-				return items; // Return structured data
+				return items;
 			} else {
 				this.log('warn', `No board found with ID ${boardId}`);
+				this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 			}
 	
 		} catch (error) {
 			this.log('error', `Error querying Monday board: ${error.message}`);
+			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 		}
 	}
 
@@ -190,6 +194,7 @@ class ModuleInstance extends InstanceBase {
 	
 		if (!mondayApiToken) {
 			this.log('error', 'Monday API Token is not set. Cannot query item.');
+			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 			return;
 		}
 	
@@ -221,6 +226,7 @@ class ModuleInstance extends InstanceBase {
 	
 			if (result.errors) {
 				this.log('error', `Error querying item ${itemId}: ${result.errors[0].message}`);
+				this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 				return;
 			}
 	
@@ -229,27 +235,26 @@ class ModuleInstance extends InstanceBase {
 			if (item) {
 				this.log('info', `Item Retrieved: ${item.name} (ID: ${item.id})`);
 	
-				// Format item data
 				const itemData = {
 					id: item.id,
 					name: item.name,
 					fields: item.column_values.map(col => ({
 						id: col.id,
-						title: col.id, // Column ID as title (Monday API does not return column titles here)
-						text: col.text || 'N/A', // Human-readable value
-						raw_value: col.value || 'N/A' // Raw JSON value
+						title: col.id,
+						text: col.text || 'N/A',
+						raw_value: col.value || 'N/A'
 					}))
 				};
 	
-				//this.log('info', `Item Data: ${JSON.stringify(itemData, null, 2)}`);
-	
-				return itemData; // Return structured item data
+				return itemData;
 			} else {
 				this.log('warn', `No item found with ID ${itemId}`);
+				this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 			}
 	
 		} catch (error) {
 			this.log('error', `Error querying Monday item: ${error.message}`);
+			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 		}
 	}
 	
@@ -703,9 +708,12 @@ class ModuleInstance extends InstanceBase {
 				'board-sync-status': 'Synced',
 				'last-board-sync': now.toLocaleString()
 			});
+			this.checkFeedbacks('last_sync_status');
 	
 		} catch (error) {
 			this.log('error', `Error in syncEvent: ${error.message}`);
+			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
+			this.checkFeedbacks('last_sync_status');
 			this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
 			return this.offlineSyncEvent();
 		}
@@ -851,6 +859,13 @@ class ModuleInstance extends InstanceBase {
 		// ✅ Sort presentations by start time
 		todayPresentations.sort((a, b) => a.startTime - b.startTime);
 	
+		// Check if time mode is disabled
+		const timeMode = this.getVariableValue('time-mode');
+		if (timeMode === 'disabled') {
+			this.log('info', '⚠ Time Mode is disabled - skipping presentation updates');
+			return;
+		}
+	
 		const now = new Date();
 		let previousPresentation = null;
 		let currentPresentation = null;
@@ -893,8 +908,9 @@ class ModuleInstance extends InstanceBase {
 		this.log('info', `Current: ${currentPresentation ? currentPresentation.name : "None"}`);
 		this.log('info', `Next: ${nextPresentation ? nextPresentation.name : "None"}`);
 	
-		// ✅ Update Companion variables
+		// ✅ Update Companion variables only if time mode is enabled
 		this.setVariableValues({
+			'board-sync-status': 'Offline',
 			'presentation-name-p': previousPresentation ? previousPresentation.name : 'Unknown',
 			'presentation-presenter-p': previousPresentation ? previousPresentation.presenter : 'Unknown',
 			'presentation-timeslot-p': previousPresentation
@@ -928,7 +944,7 @@ class ModuleInstance extends InstanceBase {
 			'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 			'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown'
 		});
-	
+		this.checkFeedbacks('last_sync_status');
 		this.log('info', `Offline Sync Complete!`);
 	}
 	
@@ -1261,10 +1277,6 @@ class ModuleInstance extends InstanceBase {
 					'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 					'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 					'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
-		
-					// Board Sync Status
-					'board-sync-status': 'Manual Position',
-					'last-board-sync': new Date().toLocaleString()
 				});
 		
 			} catch (error) {
