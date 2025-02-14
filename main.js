@@ -944,8 +944,15 @@ class ModuleInstance extends InstanceBase {
 			'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 			'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown'
 		});
-		this.checkFeedbacks('last_sync_status');
-		this.log('info', `Offline Sync Complete!`);
+
+		 // Add these debug logs
+		 const currentStatus = this.getVariableValue('board-sync-status');
+		 this.log('info', `Set board-sync-status to: ${currentStatus}`);
+		 this.checkFeedbacks('last_sync_status');
+		 this.log('info', `Checked feedback after setting status to: ${currentStatus}`);
+		 
+		 this.log('info', `Offline Sync Complete!`);
+
 	}
 	
 	/**
@@ -1183,13 +1190,18 @@ class ModuleInstance extends InstanceBase {
 		// AFTER UPDATING the presentation position while time-mode is disabled, this will set the variables of all previous/current/next presentations to match the chosen position. 
 		async setManualPresentationPosition() {
 			try {
+				this.log('info', '=== Starting setManualPresentationPosition ===');
 				const presentationManagementBoardId = this.getVariableValue('synced-presentation-management-board');
 				const myRoomId = this.getVariableValue('my-room') || 'Unknown';
 				let validPresentations = [];
 		
+				this.log('info', `Using Board ID: ${presentationManagementBoardId}`);
+				this.log('info', `Using Room ID: ${myRoomId}`);
+		
 				// Try to get presentations from API first
 				try {
 					validPresentations = await this.getTodaysPresentations(presentationManagementBoardId, myRoomId);
+					this.log('info', `Successfully got ${validPresentations.length} presentations from API`);
 				} catch (error) {
 					this.log('info', `Failed to get presentations from API, falling back to cache: ${error.message}`);
 					
@@ -1204,13 +1216,19 @@ class ModuleInstance extends InstanceBase {
 						}
 						const filePath = path.join(baseDir, 'presentation_sync_data.json');
 						
+						this.log('info', `Reading from cache file: ${filePath}`);
+						
 						const fileContent = fs.readFileSync(filePath, 'utf-8');
 						const cachedData = JSON.parse(fileContent);
 						validPresentations = cachedData.presentations;
 						
 						// Filter for today's presentations
 						const todayDate = new Date().toISOString().split('T')[0];
+						this.log('info', `Filtering for today's date: ${todayDate}`);
+						this.log('info', `Total presentations in cache before filtering: ${validPresentations.length}`);
+						
 						validPresentations = validPresentations.filter(p => p.sessionDate === todayDate);
+						this.log('info', `Presentations found for today: ${validPresentations.length}`);
 						
 						if (!validPresentations || validPresentations.length === 0) {
 							throw new Error('No valid presentations found in cache for today');
@@ -1223,7 +1241,8 @@ class ModuleInstance extends InstanceBase {
 		
 				// Get the position value
 				const position = parseInt(this.getVariableValue('time-mode-disabled-presentation-position')) || 1;
-				this.log('info', `Setting presentation position to: ${position}`);
+				this.log('info', `Current requested position: ${position}`);
+				this.log('info', `Total valid presentations: ${validPresentations.length}`);
 		
 				// Validate position
 				if (position < 1 || position > validPresentations.length) {
@@ -1233,9 +1252,14 @@ class ModuleInstance extends InstanceBase {
 		
 				// Get previous, current, and next presentations based on position
 				const currentIndex = position - 1;
+				this.log('info', `Using array index: ${currentIndex}`);
+		
 				const currentPresentation = validPresentations[currentIndex];
 				const previousPresentation = currentIndex > 0 ? validPresentations[currentIndex - 1] : null;
 				const nextPresentation = currentIndex < validPresentations.length - 1 ? validPresentations[currentIndex + 1] : null;
+		
+				// Debug log the full presentation data
+				this.log('info', `Current Presentation Data: ${JSON.stringify(currentPresentation, null, 2)}`);
 		
 				// Log the selections
 				this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
@@ -1243,6 +1267,7 @@ class ModuleInstance extends InstanceBase {
 				this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
 		
 				// Update Companion variables
+				this.log('info', 'Updating Companion variables...');
 				this.setVariableValues({
 					// Previous Presentation
 					'presentation-name-p': previousPresentation ? previousPresentation.name : 'Unknown',
@@ -1278,9 +1303,11 @@ class ModuleInstance extends InstanceBase {
 					'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 					'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
 				});
+				this.log('info', '=== Completed setManualPresentationPosition ===');
 		
 			} catch (error) {
 				this.log('error', `Error in setManualPresentationPosition: ${error.message}`);
+				this.log('error', `Stack trace: ${error.stack}`);
 			}
 		}
 	

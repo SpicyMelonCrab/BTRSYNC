@@ -39,7 +39,8 @@ module.exports = function (self) {
                 color: combineRgb(255, 255, 255)
             },
             callback: (feedback) => {
-                return self.getVariableValue('auto-sync') === 'enabled'
+                const autoSync = self.getVariableValue('auto-sync');
+                return autoSync === 'enabled';
             }
         },
         time_mode_status: {
@@ -51,39 +52,47 @@ module.exports = function (self) {
                 color: combineRgb(255, 255, 255)
             },
             callback: (feedback) => {
-                return self.getVariableValue('time-mode') === 'enabled'
+                const timeMode = self.getVariableValue('time-mode');
+                return timeMode === 'enabled';
             }
         },
-        last_sync_status: {
+		last_sync_status: {
             type: 'advanced',
             name: 'Sync Status',
-            description: 'Shows green when synced, yellow when offline, red when failed',
+            description: 'Shows colors based on sync status',
             options: [],
             callback: (feedback) => {
                 const syncStatus = self.getVariableValue('board-sync-status');
-                
-                switch(syncStatus) {
-                    case 'Synced':
-                        return {
-                            bgcolor: combineRgb(0, 255, 0), // Green
-                            color: combineRgb(255, 255, 255)
-                        };
-                    case 'Offline':
-                        return {
-                            bgcolor: combineRgb(255, 255, 0), // Yellow
-                            color: combineRgb(0, 0, 0)
-                        };
-                    case 'Last Sync Failed':
-                        return {
-                            bgcolor: combineRgb(255, 0, 0), // Red
-                            color: combineRgb(255, 255, 255)
-                        };
-                    default:
-                        return {
-                            bgcolor: combineRgb(0, 0, 0), // Black
-                            color: combineRgb(255, 255, 255)
-                        };
+                self.log('debug', `Sync Status Feedback - Current Status: ${syncStatus}`);
+
+                // Log before returning each color
+                if (syncStatus === 'Synced') {
+                    self.log('debug', `Returning GREEN for Synced status`);
+                    return {
+                        bgcolor: combineRgb(0, 255, 0),
+                        color: combineRgb(255, 255, 255)
+                    };
                 }
+                if (syncStatus === 'Offline') {
+                    self.log('debug', `Returning YELLOW for Offline status`);
+                    return {
+                        bgcolor: combineRgb(255, 255, 0),
+                        color: combineRgb(0, 0, 0)
+                    };
+                }
+                if (syncStatus === 'Last Sync Failed') {
+                    self.log('debug', `Returning RED for Failed status`);
+                    return {
+                        bgcolor: combineRgb(255, 0, 0),
+                        color: combineRgb(255, 255, 255)
+                    };
+                }
+
+                self.log('debug', `Returning BLACK for unknown status: ${syncStatus}`);
+                return {
+                    bgcolor: combineRgb(0, 0, 0),
+                    color: combineRgb(255, 255, 255)
+                };
             }
         }
     });
