@@ -863,6 +863,8 @@ class ModuleInstance extends InstanceBase {
 		const timeMode = this.getVariableValue('time-mode');
 		if (timeMode === 'disabled') {
 			this.log('info', '⚠ Time Mode is disabled - skipping presentation updates');
+			this.setVariableValues({ 'board-sync-status': 'Offline' });
+			this.checkFeedbacks('last_sync_status');
 			return;
 		}
 	
@@ -947,11 +949,8 @@ class ModuleInstance extends InstanceBase {
 
 		 // Add these debug logs
 		 const currentStatus = this.getVariableValue('board-sync-status');
-		 this.log('info', `Set board-sync-status to: ${currentStatus}`);
 		 this.checkFeedbacks('last_sync_status');
-		 this.log('info', `Checked feedback after setting status to: ${currentStatus}`);
-		 
-		 this.log('info', `Offline Sync Complete!`);
+		 this.log('info', `Offline Time Mode Sync Complete!`);
 
 	}
 	
