@@ -6,6 +6,10 @@ module.exports = function (self) {
             options: [],
             callback: async () => {
                 self.log('info', 'Force Sync Event triggered by user.');
+                
+                // Set a flag to indicate force sync
+                self.forceSyncInProgress = true;
+                
                 await self.syncEvent();
                 self.checkFeedbacks('last_sync_status');
             }

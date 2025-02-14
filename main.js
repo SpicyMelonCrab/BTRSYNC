@@ -574,7 +574,8 @@ class ModuleInstance extends InstanceBase {
 		// Check if auto-sync is enabled
 		const autoSyncStatus = this.getVariableValue('auto-sync') || 'enabled';
 		
-		if (autoSyncStatus === 'disabled') {
+		// Only skip sync if auto-sync is disabled AND it's not a force sync
+		if (autoSyncStatus === 'disabled' && !this.forceSyncInProgress) {
 			this.log('info', 'Auto-Sync is disabled. Running offlineSyncEvent instead.');
 			await this.offlineSyncEvent();
 			return;
@@ -661,6 +662,7 @@ class ModuleInstance extends InstanceBase {
 				this.log('info', 'Time Mode is disabled. Presentation List updated, variables will not be updated to match time.');
 				return;
 			}
+	
 			// Log identified presentations
 			const completionPercent = calculatedCompletionPercent;
 			
@@ -714,8 +716,15 @@ class ModuleInstance extends InstanceBase {
 			this.log('error', `Error in syncEvent: ${error.message}`);
 			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
 			this.checkFeedbacks('last_sync_status');
-			this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
-			return this.offlineSyncEvent();
+			
+			// Only fall back to offline sync if not a force sync
+			if (!this.forceSyncInProgress) {
+				this.log('info', `🔄 Switching to offline mode... Running offlineSyncEvent()`);
+				return this.offlineSyncEvent();
+			}
+		} finally {
+			// Reset force sync flag
+			this.forceSyncInProgress = false;
 		}
 	}
 
