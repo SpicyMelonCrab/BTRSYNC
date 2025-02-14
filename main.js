@@ -1115,6 +1115,11 @@ class ModuleInstance extends InstanceBase {
 					this.log('error', `❌ Failed to write sync data file: ${err.message}`);
 				} else {
 					this.log('info', `!! Sync data successfully written to ${filePath}`);
+					this.setVariableValues({
+						'last-board-sync': new Date().toLocaleString(),
+						'board-sync-status': 'Synced'
+					});
+					this.checkFeedbacks('last_sync_status');
 				}
 			});
 		} catch (error) {
