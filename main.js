@@ -395,71 +395,71 @@ class ModuleInstance extends InstanceBase {
 		const terminalType = this.config['terminal-type'];
 		const selectedKit = this.config['kit-selection'];
 		const selectedSpeakerReady = this.config['speaker-ready-selection'];
- 
-		this.log('info', `Type Check:`);
-
-		if (terminalType == 'type-kit'){
+	
+		// Debug: Log initial config values
+		this.log('debug', `Starting findSyncedProjectOverview - terminalType: ${terminalType}, selectedKit: ${selectedKit}, selectedSpeakerReady: ${selectedSpeakerReady}`);
+	
+		if (terminalType === 'type-kit') {
+			this.log('debug', `Entered 'type-kit' branch`);
 			if (!selectedKit) {
 				this.log('warn', 'No kit is selected. Cannot find synced project overview.');
 				return null;
 			}
-			this.log('info', `Type Kit`);
-		}
-		if (terminalType == 'type-speaker-ready'){
+		} else if (terminalType === 'type-speaker-ready') {
+			this.log('debug', `Entered 'type-speaker-ready' branch`);
 			if (!selectedSpeakerReady) {
 				this.log('warn', 'No SR is selected. Cannot find synced project overview.');
 				return null;
 			}
-			this.log('info', `Type Speaker Ready`);
+		} else {
+			this.log('debug', `Unexpected terminalType value: ${terminalType}`);
+			return null;
 		}
 	
 		const projectsBoardId = 7885126203; // Board containing projects
 	
 		try {
-			// Step 2: Query all projects on the projects board
+			// Debug: Before querying projects
+			this.log('debug', `Querying projects board ID: ${projectsBoardId}`);
 			const projects = await this.queryMondayBoard(projectsBoardId);
 			if (!projects || projects.length === 0) {
 				this.log('warn', 'No projects found on the projects board.');
 				this.log('warn', "⚠️ API call failed. Switching to offlineSyncEvent.");
 				if (!fs.existsSync('/var/lib/BitCompanionSync/presentation_sync_data.json')) {
 					this.log('warn', 'No offline data found. Skipping offline sync.');
-					return;
+					return null;
 				}
 				await this.offlineSyncEvent();
 				return null;
 			}
 	
-			// Step 3: Iterate through projects and check for 'Project Board ID'
+			// Debug: Log number of projects retrieved
+			this.log('debug', `Retrieved ${projects.length} projects from board ${projectsBoardId}`);
+	
 			for (const project of projects) {
-				const projectBoardIdField = project.fields.find(field => field.id === 'text_mkn1gxxq'); //PROJECT OVERVIEW BOARD ID
+				const projectBoardIdField = project.fields.find(field => field.id === 'text_mkn1gxxq'); // PROJECT OVERVIEW BOARD ID
 	
 				if (projectBoardIdField && projectBoardIdField.text && projectBoardIdField.text !== "N/A") {
 					const projectBoardId = projectBoardIdField.text.trim();
 	
 					if (!isNaN(projectBoardId)) {
-						// Step 4: Query the first item on the found project board
+						this.log('debug', `Processing project with board ID: ${projectBoardId}`);
 						const projectItems = await this.queryMondayBoard(projectBoardId);
 						if (projectItems && projectItems.length > 0) {
 							this.log('info', `Found first item on board ${projectBoardId}: ${projectItems[0].id}`);
 	
-							// Query the first item itself
 							const itemDetails = await this.queryMondayItem(projectItems[0].id);
-	
 							if (!itemDetails) {
 								this.log('warn', `No details retrieved for item ID ${projectItems[0].id}`);
 								return null;
 							}
 	
-							// ✅ Check if status_mkmwnf9d is "Syncing"
 							const syncStatusField = itemDetails.fields.find(field => field.id === 'status_mkmwnf9d');
 							if (!syncStatusField || syncStatusField.text !== "Syncing") {
 								this.log('warn', `Project ${itemDetails.id} is not in 'Syncing' state. Status: '${syncStatusField ? syncStatusField.text : 'N/A'}'. Skipping.`);
-								return null; // ❌ Do not proceed
+								return null;
 							}
-
-							// ✅ Log raw values of all fields in itemDetails
-							//this.log('info', `Raw Values of itemDetails: ${JSON.stringify(itemDetails.fields.map(f => ({ id: f.id, title: f.title, raw_value: f.raw_value })), null, 2)}`);
-							// ✅ Extract relevant IDs from itemDetails
+	
 							const tempVariables = {
 								'presentation-mngr-id': null,
 								'dashboard-id': null,
@@ -468,8 +468,7 @@ class ModuleInstance extends InstanceBase {
 								'room-info-id': null,
 								'project-logistics-id': null
 							};
-
-							// ✅ Map field IDs to variable names
+	
 							const fieldMappings = {
 								'text_mkmnf1qw': 'presentation-mngr-id',
 								'text_mkmnbbe0': 'dashboard-id',
@@ -478,31 +477,21 @@ class ModuleInstance extends InstanceBase {
 								'text_mkmntkc7': 'room-info-id',
 								'text_mkmn3pq2': 'project-logistics-id'
 							};
-
-							// ✅ Extract values and store them in tempVariables
+	
 							itemDetails.fields.forEach(field => {
 								if (fieldMappings[field.id] && field.raw_value !== "N/A") {
-									tempVariables[fieldMappings[field.id]] = field.raw_value.replace(/"/g, ''); // Remove extra quotes
+									tempVariables[fieldMappings[field.id]] = field.raw_value.replace(/"/g, '');
 								}
 							});
-
-							// ✅ Log extracted values for debugging
-							//this.log('info', `Temporary Stored Variables: ${JSON.stringify(tempVariables, null, 2)}`);
-
-							// ✅ Now we can reference `tempVariables` throughout the method as needed.
-
-							// Extract 'text_mkmntkc7' field (Room Info Board ID)
-							const roomInfoField = itemDetails.fields.find(field => field.id === 'text_mkmntkc7');
 	
+							const roomInfoField = itemDetails.fields.find(field => field.id === 'text_mkmntkc7');
 							if (roomInfoField) {
 								const roomInfoBoard = roomInfoField.text || 'Unknown';
 								this.setVariableValues({ 'synced-room-info-board': roomInfoBoard });
+								this.log('debug', `Room Info Board Identified: ${roomInfoBoard}`);
 	
-								this.log('info', `Room Info Board Identified: ${roomInfoBoard}`);
-	
-								// Query the Room Info Board
 								if (!isNaN(roomInfoBoard) && roomInfoBoard.trim() !== '') {
-									this.log('info', `Querying Room Info Board (ID: ${roomInfoBoard})...`);
+									this.log('debug', `Querying Room Info Board ID: ${roomInfoBoard}`);
 									const roomBoardItems = await this.queryMondayBoard(roomInfoBoard);
 	
 									if (!roomBoardItems || roomBoardItems.length === 0) {
@@ -510,90 +499,114 @@ class ModuleInstance extends InstanceBase {
 										return null;
 									}
 	
-									// KITS ONLY
-									if (terminalType == 'type-kit'){
-										// CHECK FOR MATCHING KIT
-
-										// ✅ Collect 'Kit Assigned' values
+									this.log('debug', `Retrieved ${roomBoardItems.length} items from Room Info Board`);
+	
+									if (terminalType === 'type-kit') {
+										this.log('debug', `Processing 'type-kit' matching logic`);
 										let kitAssignedValues = [];
-										let matchedRoomId = null;  // ✅ Store the matched room ID
-										//this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
-
+										let matchedRoomId = null;
+	
 										roomBoardItems.forEach((item) => {
 											const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
-		
 											if (kitAssignedField) {
 												try {
 													const rawData = JSON.parse(kitAssignedField.raw_value);
 													if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
 														const linkedKitIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
 														kitAssignedValues.push(...linkedKitIds);
-
-														// ✅ Check if any linked Kit ID matches the selected kit
+	
 														if (linkedKitIds.includes(parseInt(selectedKit))) {
-															matchedRoomId = item.id; // ✅ Store the matched room ID
-															
-															this.log('debug', `Pre-match roomBoardItems: ${JSON.stringify(roomBoardItems, null, 2)}`);
-															// ✅ Log the matched Room ID
-															this.log('info', `Matched Room Found! Room ID: ${matchedRoomId} for Kit: ${selectedKit}`);
+															matchedRoomId = item.id;
+															this.log('debug', `Matched Kit ID ${selectedKit} in Room ID: ${matchedRoomId}`);
 														}
-
 													}
 												} catch (error) {
 													this.log('error', `Error parsing 'Kit Assigned' for item ${item.id}: ${error.message}`);
 												}
 											}
 										});
-		
-										// ✅ Log the collected 'Kit Assigned' values
-										this.log('info', `Collected 'Kit Assigned' values: ${kitAssignedValues.join(", ")}`);
-		
-										// ✅ Check if any of the collected Kit IDs match the selected Kit
+	
+										this.log('debug', `Collected Kit Assigned values: ${kitAssignedValues.join(", ")}`);
 										const matchingKit = kitAssignedValues.find(kitId => kitId.toString() === selectedKit.toString());
-		
+	
 										if (matchingKit) {
 											const matchedProjectId = projectItems[0].id;
-										
-											// ✅ Store the matched project ID and related board IDs
 											this.setVariableValues({
 												'synced-project-overview-item-id': matchedProjectId,
-												'synced-room-info-board': tempVariables['room-info-id'], // ✅ Set to Room Info Board ID
-												'synced-presentation-management-board': tempVariables['presentation-mngr-id'], // ✅ Set to Presentation Manager ID
-												'my-room': matchedRoomId || 'Unknown' // ✅ Store the matched Room ID
+												'synced-room-info-board': tempVariables['room-info-id'],
+												'synced-presentation-management-board': tempVariables['presentation-mngr-id'],
+												'my-room': matchedRoomId || 'Unknown'
 											});
-
-											// ✅ Log when `my-room` is assigned
-											this.log('info', `Assigned Room ID to my-room: ${matchedRoomId}`);
-
-
 											this.lastSyncedProjectId = matchedProjectId;
-										
-											this.log('info', `Match found! Kit ${matchingKit} is assigned to project ${matchedProjectId}.`);
-											this.log('info', `synced-room-info-board set to: ${tempVariables['room-info-id']}`);
-											this.log('info', `synced-presentation-management-board set to: ${tempVariables['presentation-mngr-id']}`);
-										
-											// ✅ Stop running future queries
+											this.log('debug', `Kit match successful. Project ID: ${matchedProjectId}, Room ID: ${matchedRoomId}`);
 											if (this.repeatingBoardQuery) {
 												clearInterval(this.repeatingBoardQuery);
 												this.repeatingBoardQuery = null;
-												this.log('info', `Stopped further queries after finding a match.`);
 											}
-										
-											// ✅ Start the syncing process
-											this.startSyncingProcess();  // <-- ADD THIS LINE
-										
-											return matchedProjectId; // ✅ Return the matched project item ID
-										}else {
-											this.log('warn', "No matching Kit Assigned found for the selected kit.");
-											return null;
+											this.startSyncingProcess();
+											return matchedProjectId;
+										} else {
+											this.log('debug', `No matching Kit found for selectedKit: ${selectedKit}`);
+										}
+									} else if (terminalType === 'type-speaker-ready') {
+										this.log('debug', `Processing 'type-speaker-ready' matching logic`);
+										let speakerReadyAssignedValues = [];
+										let matchedRoomId = null;
+	
+										// Debug: Log raw roomBoardItems for inspection
+										this.log('debug', `Raw roomBoardItems: ${JSON.stringify(roomBoardItems, null, 2)}`);
+	
+										roomBoardItems.forEach((item) => {
+											const speakerReadyAssignedField = item.fields.find(field => field.id === "connect_boards_mknaymw4");
+											this.log('debug', `Item ${item.id} - speakerReadyAssignedField: ${JSON.stringify(speakerReadyAssignedField)}`);
+	
+											if (speakerReadyAssignedField) {
+												try {
+													const rawData = JSON.parse(speakerReadyAssignedField.raw_value);
+													this.log('debug', `Parsed rawData for item ${item.id}: ${JSON.stringify(rawData)}`);
+													if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
+														const linkedSpeakerReadyIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
+														speakerReadyAssignedValues.push(...linkedSpeakerReadyIds);
+														this.log('debug', `Linked Speaker Ready IDs for item ${item.id}: ${linkedSpeakerReadyIds}`);
+	
+														if (linkedSpeakerReadyIds.includes(parseInt(selectedSpeakerReady))) {
+															matchedRoomId = item.id;
+															this.log('debug', `Matched Speaker Ready ID ${selectedSpeakerReady} in Room ID: ${matchedRoomId}`);
+														}
+													} else {
+														this.log('debug', `No linkedPulseIds found for item ${item.id}`);
+													}
+												} catch (error) {
+													this.log('error', `Error parsing 'SR Assigned' for item ${item.id}: ${error.message}`);
+												}
+											} else {
+												this.log('debug', `No speakerReadyAssignedField found for item ${item.id}`);
+											}
+										});
+	
+										this.log('debug', `Collected Speaker Ready Assigned values: ${speakerReadyAssignedValues.join(", ")}`);
+										const matchingSpeakerReady = speakerReadyAssignedValues.find(speakerReadyId => speakerReadyId.toString() === selectedSpeakerReady.toString());
+	
+										if (matchingSpeakerReady) {
+											const matchedProjectId = projectItems[0].id;
+											this.setVariableValues({
+												'synced-project-overview-item-id': matchedProjectId,
+												'synced-room-info-board': tempVariables['room-info-id'],
+												'synced-presentation-management-board': tempVariables['presentation-mngr-id'],
+												'my-room': matchedRoomId || 'Unknown'
+											});
+											this.lastSyncedProjectId = matchedProjectId;
+											this.log('debug', `Speaker Ready match successful. Project ID: ${matchedProjectId}, Room ID: ${matchedRoomId}`);
+											if (this.repeatingBoardQuery) {
+												clearInterval(this.repeatingBoardQuery);
+												this.repeatingBoardQuery = null;
+											}
+											this.startSyncingProcess();
+											return matchedProjectId;
+										} else {
+											this.log('debug', `No matching Speaker Ready found for selectedSpeakerReady: ${selectedSpeakerReady}`);
 										}
 									}
-
-
-
-
-
-
 								} else {
 									this.log('error', `Invalid Room Info Board ID: '${roomInfoBoard}'. Skipping query.`);
 								}
@@ -831,9 +844,16 @@ class ModuleInstance extends InstanceBase {
 				throw new Error(`API call to Monday.com failed: ${error.message}`);
 			}
 	
+			const terminalType = this.config['terminal-type'];
+			const roomFieldId = terminalType === 'type-kit' 
+				? "connect_boards_mkn2244w" 
+				: "dup__of_room_info_mkn2spge"; // Replace with correct Speaker Ready field ID
+
+			this.log('debug', `Using roomFieldId: ${roomFieldId} based on terminalType: ${terminalType}`);
+			
 			// Filter out presentations that do not belong to `my-room`
 			const filteredPresentations = presentationBoardItems.filter(item => {
-				const roomInfoField = item.fields.find(field => field.id === "connect_boards_mkn2244w");
+				const roomInfoField = item.fields.find(field => field.id === roomFieldId);
 	
 				if (!roomInfoField || roomInfoField.raw_value === "N/A") {
 					return false; // Exclude items with no valid room info
