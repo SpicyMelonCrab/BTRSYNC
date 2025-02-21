@@ -27,9 +27,9 @@ class ModuleInstance extends InstanceBase {
 			'time-mode-disabled-presentation-position' : '1',
 			'current-presentation-actual-start-time' : 'None',
 			'current-presentation-actual-duration': 'None',
-			'presentation_file_path-p' : 'Unknown',
-			'presentation_file_path-c' : 'Unknown',
-			'presentation_file_path-n' : 'Unknown',
+			'presentation-file-path-p' : 'Unknown',
+			'presentation-file-path-c' : 'Unknown',
+			'presentation-file-path-n' : 'Unknown',
 			'allow-demo-p': 'Unknown',
 			'allow-demo-c': 'Unknown',
 			'allow-demo-n': 'Unknown',
@@ -684,6 +684,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
 				'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
 				'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+				'presentation-file-path-p': previousPresentation ? previousPresentation.filePath : 'Unknown',
 	
 				// Current Presentation
 				'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
@@ -696,6 +697,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
 				'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
 				'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+				'presentation-file-path-c': currentPresentation ? currentPresentation.filePath : 'Unknown',
 	
 				// Next Presentation
 				'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
@@ -707,6 +709,7 @@ class ModuleInstance extends InstanceBase {
 				'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 				'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 				'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
+				'presentation-file-path-n': nextPresentation ? nextPresentation.filePath : 'Unknown',
 	
 				// Board Sync Status
 				'board-sync-status': 'Synced',
@@ -791,7 +794,8 @@ class ModuleInstance extends InstanceBase {
 				allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
 				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
 				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
-				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1")
+				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1"),
+				filePath: this.getFieldValue(item.fields, "text_mkna2hcs")
 			})).filter(p => p.startTime && p.endTime);
 	
 			// Sort presentations by start time (earliest first)
@@ -933,6 +937,7 @@ class ModuleInstance extends InstanceBase {
 			'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
 			'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
 			'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+			'presentation-file-path-p' : previousPresentation ? previousPresentation.filePath: 'Unknown',
 	
 			'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
 			'presentation-presenter-c': currentPresentation ? currentPresentation.presenter : 'Unknown',
@@ -946,6 +951,7 @@ class ModuleInstance extends InstanceBase {
 			'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
 			'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
 			'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+			'presentation-file-path-c' : currentPresentation ? currentPresentation.filePath: 'Unknown',
 	
 			'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
 			'presentation-presenter-n': nextPresentation ? nextPresentation.presenter : 'Unknown',
@@ -955,7 +961,8 @@ class ModuleInstance extends InstanceBase {
 			'allow-demo-n': nextPresentation ? nextPresentation.allowDemo : 'Unknown',
 			'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 			'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
-			'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown'
+			'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
+			'presentation-file-path-n' : nextPresentation ? nextPresentation.filePath: 'Unknown'
 		});
 
 		 // Add these debug logs
@@ -1096,7 +1103,8 @@ class ModuleInstance extends InstanceBase {
 						allowDemo: presentation.allowDemo || "Unknown",
 						record: presentation.record || "Unknown",
 						stream: presentation.stream || "Unknown",
-						streamAddress: presentation.streamAddress || "Unknown"
+						streamAddress: presentation.streamAddress || "Unknown",
+						filePath: presentation.filePath || "Unknown"
 					};
 				})
 			};
@@ -1294,6 +1302,7 @@ class ModuleInstance extends InstanceBase {
 					'allow-record-p': previousPresentation ? previousPresentation.record : 'Unknown',
 					'allow-stream-p': previousPresentation ? previousPresentation.stream : 'Unknown',
 					'stream-address-p': previousPresentation ? previousPresentation.streamAddress : 'Unknown',
+					'presentation-file-path-p': previousPresentation ? previousPresentation.filePath : 'Unknown',
 		
 					// Current Presentation
 					'presentation-name-c': currentPresentation ? currentPresentation.name : 'Unknown',
@@ -1306,6 +1315,7 @@ class ModuleInstance extends InstanceBase {
 					'allow-record-c': currentPresentation ? currentPresentation.record : 'Unknown',
 					'allow-stream-c': currentPresentation ? currentPresentation.stream : 'Unknown',
 					'stream-address-c': currentPresentation ? currentPresentation.streamAddress : 'Unknown',
+					'presentation-file-path-c': currentPresentation ? currentPresentation.filePath : 'Unknown',
 		
 					// Next Presentation
 					'presentation-name-n': nextPresentation ? nextPresentation.name : 'Unknown',
@@ -1317,6 +1327,7 @@ class ModuleInstance extends InstanceBase {
 					'allow-record-n': nextPresentation ? nextPresentation.record : 'Unknown',
 					'allow-stream-n': nextPresentation ? nextPresentation.stream : 'Unknown',
 					'stream-address-n': nextPresentation ? nextPresentation.streamAddress : 'Unknown',
+					'presentation-file-path-n': nextPresentation ? nextPresentation.filePath : 'Unknown',
 				});
 				this.log('info', '=== Completed setManualPresentationPosition ===');
 		
