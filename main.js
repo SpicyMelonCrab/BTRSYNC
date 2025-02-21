@@ -57,7 +57,8 @@ class ModuleInstance extends InstanceBase {
 			'last-board-sync': 'Never',
 			'synced-room-info-board' : 'unknown',
 			'synced-presentation-management-board': 'unknown',
-			'my-room': "Unknown"
+			'my-room': "Unknown",
+			'presentation-password-input': ""
 		});
 		
 		 // Collect information on all Kits.
@@ -146,6 +147,10 @@ class ModuleInstance extends InstanceBase {
 					`
 				})
 			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
 	
 			const result = await response.json();
 	
@@ -221,7 +226,11 @@ class ModuleInstance extends InstanceBase {
 					`
 				})
 			});
-	
+			
+			if (!response.ok) {
+				throw new Error(`HTTP error! Status: ${response.status}`);
+			}
+
 			const result = await response.json();
 	
 			if (result.errors) {
@@ -353,7 +362,11 @@ class ModuleInstance extends InstanceBase {
 			if (!projects || projects.length === 0) {
 				this.log('warn', 'No projects found on the projects board.');
 				this.log('warn', "⚠️ API call failed. Switching to offlineSyncEvent.");
-				this.offlineSyncEvent(); // Fallback to offline sync
+				if (!fs.existsSync('/var/lib/BitCompanionSync/presentation_sync_data.json')) {
+					this.log('warn', 'No offline data found. Skipping offline sync.');
+					return;
+				}
+				await this.offlineSyncEvent();
 				return null;
 			}
 	
@@ -456,7 +469,8 @@ class ModuleInstance extends InstanceBase {
 													// ✅ Check if any linked Kit ID matches the selected kit
 													if (linkedKitIds.includes(parseInt(selectedKit))) {
 														matchedRoomId = item.id; // ✅ Store the matched room ID
-									
+														
+														this.log('debug', `Pre-match roomBoardItems: ${JSON.stringify(roomBoardItems, null, 2)}`);
 														// ✅ Log the matched Room ID
 														this.log('info', `Matched Room Found! Room ID: ${matchedRoomId} for Kit: ${selectedKit}`);
 													}
@@ -795,7 +809,8 @@ class ModuleInstance extends InstanceBase {
 				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
 				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
 				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1"),
-				filePath: this.getFieldValue(item.fields, "text_mkna2hcs")
+				filePath: this.getFieldValue(item.fields, "text_mkna2hcs"),
+				presenterPassword: this.getFieldValue(item.fields, "text_mkmvmmgp")
 			})).filter(p => p.startTime && p.endTime);
 	
 			// Sort presentations by start time (earliest first)
@@ -1048,6 +1063,8 @@ class ModuleInstance extends InstanceBase {
 	calculateProgress(startTime, endTime) {
 		if (!startTime || !endTime) return "0";
 		const now = new Date();
+		if (now < startTime) return "0";  // Future presentation
+    	if (now >= endTime) return "100"; // Past presentation
 		const totalDuration = endTime - startTime;
 		const elapsed = now - startTime;
 		return ((elapsed / totalDuration) * 100).toFixed(2);
@@ -1104,7 +1121,8 @@ class ModuleInstance extends InstanceBase {
 						record: presentation.record || "Unknown",
 						stream: presentation.stream || "Unknown",
 						streamAddress: presentation.streamAddress || "Unknown",
-						filePath: presentation.filePath || "Unknown"
+						filePath: presentation.filePath || "Unknown",
+						presenterPassword: presentation.presenterPassword || "Unknown"
 					};
 				})
 			};
@@ -1116,13 +1134,15 @@ class ModuleInstance extends InstanceBase {
 			} else {
 				//this.log('warn', `⚠ No presentations to save.`);
 			}
-	
+
 			// 📌 Write the data to a JSON file
-			fs.writeFile(filePath, JSON.stringify(exportData, null, 2), (err) => {
+			const tempFilePath = filePath + '.tmp';
+			fs.writeFile(tempFilePath, JSON.stringify(exportData, null, 2), (err) => {
 				if (err) {
 					this.log('error', `❌ Failed to write sync data file: ${err.message}`);
 				} else {
-					this.log('info', `!! Sync data successfully written to ${filePath}`);
+					fs.renameSync(tempFilePath, filePath);
+					this.log('info', `✅ Sync data successfully written to ${filePath}`);
 					this.setVariableValues({
 						'last-board-sync': new Date().toLocaleString(),
 						'board-sync-status': 'Synced'

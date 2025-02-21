@@ -159,6 +159,108 @@ module.exports = function (self) {
                 });
                 self.log('info', `✅ Current presentation started at ${actualStartTime}, duration set to ${durationMinutes} minutes.`);
             }
+        },
+        add_letter_to_password: {
+            name: 'Add Letter to Presentation Password Input',
+            description: 'Appends a letter to the current presentation password input.',
+            options: [
+                {
+                    type: 'textinput',
+                    id: 'letter',
+                    label: 'Letter to Add',
+                    default: '',
+                    regex: '/^[a-zA-Z]$/'
+                }
+            ],
+            callback: async (action) => {
+                const letter = action.options.letter;
+        
+                if (!letter || letter.length !== 1) {
+                    self.log('error', 'Invalid input: Please provide a single letter.');
+                    return;
+                }
+        
+                const currentPassword = self.getVariableValue('presentation-password-input') || '';
+        
+                if (currentPassword.length >= 5) {
+                    self.log('info', 'Password input already at max length (5 characters).');
+                    return;
+                }
+        
+                const newPassword = currentPassword + letter;
+                self.setVariableValues({ 'presentation-password-input': newPassword });
+        
+                self.log('info', `Updated password input: ${newPassword}`);
+            }
+        },
+        remove_last_letter_from_password: {
+            name: 'Remove Last Letter from Presentation Password Input',
+            description: 'Removes the last letter from the current presentation password input.',
+            options: [],
+            callback: async () => {
+                const currentPassword = self.getVariableValue('presentation-password-input') || '';
+        
+                if (currentPassword.length === 0) {
+                    self.log('info', 'Password input is already empty. Nothing to remove.');
+                    return;
+                }
+        
+                const newPassword = currentPassword.slice(0, -1);
+                self.setVariableValues({ 'presentation-password-input': newPassword });
+        
+                self.log('info', `Updated password input after backspace: ${newPassword}`);
+            }
+        },
+        reset_sync: {
+            name: 'Reset Sync Data',
+            description: 'Clears all synced variables and forces a fresh start from project overview detection.',
+            options: [],
+            callback: async () => {
+                self.log('info', '🔄 Resetting sync data and restarting from project overview detection...');
+        
+                // Reset key sync-related variables
+                self.setVariableValues({
+                    'last-board-sync': 'Never',
+                    'board-sync-status': 'Unsynced',
+                    'synced-room-info-board': 'Unknown',
+                    'synced-presentation-management-board': 'Unknown',
+                    'synced-project-overview-item-id': 'Unknown',
+                    'my-room': 'Unknown'
+                });
+        
+                // Stop any ongoing sync process
+                if (self.syncingProcessInterval) {
+                    clearInterval(self.syncingProcessInterval);
+                    self.syncingProcessInterval = null;
+                }
+        
+                // Clear local cache
+                try {
+                    let baseDir;
+                    if (process.platform === 'win32') {
+                        baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+                    } else {
+                        baseDir = path.join('/var/lib', 'BitCompanionSync');
+                    }
+                    const filePath = path.join(baseDir, 'presentation_sync_data.json');
+        
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                        self.log('info', `🗑 Deleted cached sync file: ${filePath}`);
+                    } else {
+                        self.log('info', 'No cached sync file found to delete.');
+                    }
+                } catch (error) {
+                    self.log('error', `❌ Error clearing cached sync file: ${error.message}`);
+                }
+        
+                // Reset the last synced project ID
+                self.lastSyncedProjectId = null;
+        
+                // Restart the project overview detection process
+                self.log('info', '🔍 Restarting search for synced project overview...');
+                self.repeatingBoardQuery = setInterval(() => self.findSyncedProjectOverview(), 10000);
+            }
         }
     });
 };
