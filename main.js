@@ -396,17 +396,21 @@ class ModuleInstance extends InstanceBase {
 		const selectedKit = this.config['kit-selection'];
 		const selectedSpeakerReady = this.config['speaker-ready-selection'];
  
+		this.log('info', `Type Check:`);
+
 		if (terminalType == 'type-kit'){
 			if (!selectedKit) {
 				this.log('warn', 'No kit is selected. Cannot find synced project overview.');
 				return null;
 			}
+			this.log('info', `Type Kit`);
 		}
 		if (terminalType == 'type-speaker-ready'){
 			if (!selectedSpeakerReady) {
 				this.log('warn', 'No SR is selected. Cannot find synced project overview.');
 				return null;
 			}
+			this.log('info', `Type Speaker Ready`);
 		}
 	
 		const projectsBoardId = 7885126203; // Board containing projects
@@ -506,91 +510,84 @@ class ModuleInstance extends InstanceBase {
 										return null;
 									}
 	
+									// KITS ONLY
+									if (terminalType == 'type-kit'){
+										// CHECK FOR MATCHING KIT
 
+										// ✅ Collect 'Kit Assigned' values
+										let kitAssignedValues = [];
+										let matchedRoomId = null;  // ✅ Store the matched room ID
+										//this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
 
-									// CHECK FOR MATCHING KIT
+										roomBoardItems.forEach((item) => {
+											const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
+		
+											if (kitAssignedField) {
+												try {
+													const rawData = JSON.parse(kitAssignedField.raw_value);
+													if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
+														const linkedKitIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
+														kitAssignedValues.push(...linkedKitIds);
 
-									// ✅ Collect 'Kit Assigned' values
-									let kitAssignedValues = [];
-									let matchedRoomId = null;  // ✅ Store the matched room ID
-									//this.log('info', `Room Board Items Retrieved: ${JSON.stringify(roomBoardItems, null, 2)}`);
+														// ✅ Check if any linked Kit ID matches the selected kit
+														if (linkedKitIds.includes(parseInt(selectedKit))) {
+															matchedRoomId = item.id; // ✅ Store the matched room ID
+															
+															this.log('debug', `Pre-match roomBoardItems: ${JSON.stringify(roomBoardItems, null, 2)}`);
+															// ✅ Log the matched Room ID
+															this.log('info', `Matched Room Found! Room ID: ${matchedRoomId} for Kit: ${selectedKit}`);
+														}
 
-									roomBoardItems.forEach((item) => {
-										const kitAssignedField = item.fields.find(field => field.id === "connect_boards_mkn2a222");
-	
-										if (kitAssignedField) {
-											try {
-												const rawData = JSON.parse(kitAssignedField.raw_value);
-												if (rawData.linkedPulseIds && rawData.linkedPulseIds.length > 0) {
-													const linkedKitIds = rawData.linkedPulseIds.map(link => link.linkedPulseId);
-													kitAssignedValues.push(...linkedKitIds);
-
-													// ✅ Check if any linked Kit ID matches the selected kit
-													if (linkedKitIds.includes(parseInt(selectedKit))) {
-														matchedRoomId = item.id; // ✅ Store the matched room ID
-														
-														this.log('debug', `Pre-match roomBoardItems: ${JSON.stringify(roomBoardItems, null, 2)}`);
-														// ✅ Log the matched Room ID
-														this.log('info', `Matched Room Found! Room ID: ${matchedRoomId} for Kit: ${selectedKit}`);
 													}
-
+												} catch (error) {
+													this.log('error', `Error parsing 'Kit Assigned' for item ${item.id}: ${error.message}`);
 												}
-											} catch (error) {
-												this.log('error', `Error parsing 'Kit Assigned' for item ${item.id}: ${error.message}`);
 											}
-										}
-									});
-	
-									// ✅ Log the collected 'Kit Assigned' values
-									this.log('info', `Collected 'Kit Assigned' values: ${kitAssignedValues.join(", ")}`);
-	
-									// ✅ Check if any of the collected Kit IDs match the selected Kit
-									const matchingKit = kitAssignedValues.find(kitId => kitId.toString() === selectedKit.toString());
-	
-									if (matchingKit) {
-										const matchedProjectId = projectItems[0].id;
-									
-										// ✅ Store the matched project ID and related board IDs
-										this.setVariableValues({
-											'synced-project-overview-item-id': matchedProjectId,
-											'synced-room-info-board': tempVariables['room-info-id'], // ✅ Set to Room Info Board ID
-											'synced-presentation-management-board': tempVariables['presentation-mngr-id'], // ✅ Set to Presentation Manager ID
-											'my-room': matchedRoomId || 'Unknown' // ✅ Store the matched Room ID
 										});
+		
+										// ✅ Log the collected 'Kit Assigned' values
+										this.log('info', `Collected 'Kit Assigned' values: ${kitAssignedValues.join(", ")}`);
+		
+										// ✅ Check if any of the collected Kit IDs match the selected Kit
+										const matchingKit = kitAssignedValues.find(kitId => kitId.toString() === selectedKit.toString());
+		
+										if (matchingKit) {
+											const matchedProjectId = projectItems[0].id;
+										
+											// ✅ Store the matched project ID and related board IDs
+											this.setVariableValues({
+												'synced-project-overview-item-id': matchedProjectId,
+												'synced-room-info-board': tempVariables['room-info-id'], // ✅ Set to Room Info Board ID
+												'synced-presentation-management-board': tempVariables['presentation-mngr-id'], // ✅ Set to Presentation Manager ID
+												'my-room': matchedRoomId || 'Unknown' // ✅ Store the matched Room ID
+											});
 
-										// ✅ Log when `my-room` is assigned
-										this.log('info', `Assigned Room ID to my-room: ${matchedRoomId}`);
+											// ✅ Log when `my-room` is assigned
+											this.log('info', `Assigned Room ID to my-room: ${matchedRoomId}`);
 
 
-										this.lastSyncedProjectId = matchedProjectId;
-									
-										this.log('info', `Match found! Kit ${matchingKit} is assigned to project ${matchedProjectId}.`);
-										this.log('info', `synced-room-info-board set to: ${tempVariables['room-info-id']}`);
-										this.log('info', `synced-presentation-management-board set to: ${tempVariables['presentation-mngr-id']}`);
-									
-										// ✅ Stop running future queries
-										if (this.repeatingBoardQuery) {
-											clearInterval(this.repeatingBoardQuery);
-											this.repeatingBoardQuery = null;
-											this.log('info', `Stopped further queries after finding a match.`);
+											this.lastSyncedProjectId = matchedProjectId;
+										
+											this.log('info', `Match found! Kit ${matchingKit} is assigned to project ${matchedProjectId}.`);
+											this.log('info', `synced-room-info-board set to: ${tempVariables['room-info-id']}`);
+											this.log('info', `synced-presentation-management-board set to: ${tempVariables['presentation-mngr-id']}`);
+										
+											// ✅ Stop running future queries
+											if (this.repeatingBoardQuery) {
+												clearInterval(this.repeatingBoardQuery);
+												this.repeatingBoardQuery = null;
+												this.log('info', `Stopped further queries after finding a match.`);
+											}
+										
+											// ✅ Start the syncing process
+											this.startSyncingProcess();  // <-- ADD THIS LINE
+										
+											return matchedProjectId; // ✅ Return the matched project item ID
+										}else {
+											this.log('warn', "No matching Kit Assigned found for the selected kit.");
+											return null;
 										}
-									
-										// ✅ Start the syncing process
-										this.startSyncingProcess();  // <-- ADD THIS LINE
-									
-										return matchedProjectId; // ✅ Return the matched project item ID
-
-
-
-
-
-
-
-									}else {
-										this.log('warn', "No matching Kit Assigned found for the selected kit.");
-										return null;
 									}
-
 
 
 
