@@ -63,6 +63,7 @@ class ModuleInstance extends InstanceBase {
 		
 		 // Collect information on all Kits.
 		 await this.getKits();
+		 await this.getSpeakerReadies();
 
     	this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000); // Sets 'synced-project-overview-item-id' 
 	}
@@ -94,6 +95,7 @@ class ModuleInstance extends InstanceBase {
 		// Restart finding synced project
 		if (!this.lastSyncedProjectId) {
 			await this.getKits();
+			await this.getSpeakerReadies();
 			this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000);
 		} else {
 			this.log('info', `Skipping re-initialization since project is already synced: ${this.lastSyncedProjectId}`);
@@ -303,14 +305,32 @@ class ModuleInstance extends InstanceBase {
 				width:12,
 				label: 'Kit Sync',
 				value: hasApiKey
-					? 'Kit can be selected' 
+					? 'Kit/Speaker Ready can be selected' 
 					: 'You. must sync the config panel before selecting a Kit. Input a valid API key, then SAVE, and click on the module connection in the left panel.'
+			},
+			{
+				id: 'terminal-type',
+				type: 'dropdown',
+				label: 'Terminal Type',
+				choices: [
+					{ id: 'type-kit', label: 'ECS Lite' },
+					{ id: 'type-speaker-ready', label: 'Speaker Ready' },
+				],
+				default: 'type-kit'
 			},
 			{
 				id: 'kit-selection',
 				type: 'dropdown',
 				label: 'Select a Kit',
 				choices: this.kitsDropdown || [], // Use retrieved kits
+				width: 12,
+				default: undefined
+			},
+			{
+				id: 'speaker-ready-selection',
+				type: 'dropdown',
+				label: 'Select a Speaker Ready',
+				choices: this.speakerReadyDropdown || [], // Use retrieved kits
 				width: 12,
 				default: undefined
 			},
@@ -341,6 +361,30 @@ class ModuleInstance extends InstanceBase {
 		return this.kitsDropdown;
 	}
 
+	async getSpeakerReadies() {
+		const boardID = "8352032319"; // Hardcoded board ID
+	
+		this.log('info', `Fetching all items from Board ID: ${boardID}`);
+	
+		const boardData = await this.queryMondayBoard(boardID);
+	
+		if (!boardData || boardData.length === 0) {
+			this.log('warn', `No items found on Board ID: ${boardID}`);
+			this.speakerReadyDropdown = []; // Ensure it's at least an empty array
+			return null;
+		}
+	
+		// Extract necessary fields for dropdown options
+		this.speakerReadyDropdown = boardData.map(item => ({
+			id: item.id,
+			label: item.name,
+			value: item.id
+		}));
+	
+		//this.log('info', `Kits extracted: ${JSON.stringify(this.kitsDropdown)}`);
+		return this.speakerReadyDropdown;
+	}
+
 	async findSyncedProjectOverview() {
 		// ✅ If we've already found a synced project, stop running
 		if (this.lastSyncedProjectId) {
@@ -348,10 +392,21 @@ class ModuleInstance extends InstanceBase {
 			return this.lastSyncedProjectId;
 		}
 	
+		const terminalType = this.config['terminal-type'];
 		const selectedKit = this.config['kit-selection'];
-		if (!selectedKit) {
-			this.log('warn', 'No kit is selected. Cannot find synced project overview.');
-			return null;
+		const selectedSpeakerReady = this.config['speaker-ready-selection'];
+ 
+		if (terminalType == 'type-kit'){
+			if (!selectedKit) {
+				this.log('warn', 'No kit is selected. Cannot find synced project overview.');
+				return null;
+			}
+		}
+		if (terminalType == 'type-speaker-ready'){
+			if (!selectedSpeakerReady) {
+				this.log('warn', 'No SR is selected. Cannot find synced project overview.');
+				return null;
+			}
 		}
 	
 		const projectsBoardId = 7885126203; // Board containing projects
@@ -451,6 +506,10 @@ class ModuleInstance extends InstanceBase {
 										return null;
 									}
 	
+
+
+									// CHECK FOR MATCHING KIT
+
 									// ✅ Collect 'Kit Assigned' values
 									let kitAssignedValues = [];
 									let matchedRoomId = null;  // ✅ Store the matched room ID
@@ -520,10 +579,24 @@ class ModuleInstance extends InstanceBase {
 										this.startSyncingProcess();  // <-- ADD THIS LINE
 									
 										return matchedProjectId; // ✅ Return the matched project item ID
+
+
+
+
+
+
+
 									}else {
 										this.log('warn', "No matching Kit Assigned found for the selected kit.");
 										return null;
 									}
+
+
+
+
+
+
+
 								} else {
 									this.log('error', `Invalid Room Info Board ID: '${roomInfoBoard}'. Skipping query.`);
 								}
@@ -810,7 +883,8 @@ class ModuleInstance extends InstanceBase {
 				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
 				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1"),
 				filePath: this.getFieldValue(item.fields, "text_mkna2hcs"),
-				presenterPassword: this.getFieldValue(item.fields, "text_mkmvmmgp")
+				presenterPassword: this.getFieldValue(item.fields, "text_mkmvmmgp"),
+				speakerReadyFilePath: this.getFieldValue(item.fields, "text_mkncbg3r")
 			})).filter(p => p.startTime && p.endTime);
 	
 			// Sort presentations by start time (earliest first)
@@ -1122,7 +1196,8 @@ class ModuleInstance extends InstanceBase {
 						stream: presentation.stream || "Unknown",
 						streamAddress: presentation.streamAddress || "Unknown",
 						filePath: presentation.filePath || "Unknown",
-						presenterPassword: presentation.presenterPassword || "Unknown"
+						presenterPassword: presentation.presenterPassword || "Unknown",
+						speakerReadyFilePath: presentation.speakerReadyFilePath || "Unknown"
 					};
 				})
 			};

@@ -261,6 +261,63 @@ module.exports = function (self) {
                 self.log('info', '🔍 Restarting search for synced project overview...');
                 self.repeatingBoardQuery = setInterval(() => self.findSyncedProjectOverview(), 10000);
             }
+        },
+        lookup_presentation_by_password: {
+            name: 'Lookup Presentation by Password',
+            description: 'Finds a presentation based on the password input and retrieves its file path.',
+            options: [],
+            callback: async () => {
+                try {
+                    // Get the password input
+                    const enteredPassword = self.getVariableValue('presentation-password-input') || '';
+                    
+                    if (!enteredPassword) {
+                        self.log('warn', 'No password entered. Cannot perform lookup.');
+                        return;
+                    }
+        
+                    // Determine the file path based on OS
+                    let baseDir;
+                    if (process.platform === 'win32') {
+                        baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+                    } else {
+                        baseDir = path.join('/var/lib', 'BitCompanionSync');
+                    }
+        
+                    const filePath = path.join(baseDir, 'presentation_sync_data.json');
+        
+                    // Check if the sync file exists
+                    if (!fs.existsSync(filePath)) {
+                        self.log('error', 'Sync data file not found. Cannot perform lookup.');
+                        return;
+                    }
+        
+                    // Read and parse the JSON file
+                    const fileContent = fs.readFileSync(filePath, 'utf-8');
+                    const syncData = JSON.parse(fileContent);
+                    
+                    if (!syncData.presentations || syncData.presentations.length === 0) {
+                        self.log('warn', 'No presentations found in sync data.');
+                        return;
+                    }
+        
+                    // Look for a presentation with the matching password
+                    const matchingPresentation = syncData.presentations.find(p => p.presenterPassword === enteredPassword);
+        
+                    if (matchingPresentation) {
+                        const matchedFilePath = matchingPresentation.filePath;
+                        self.log('info', `✅ Matching presentation found! File Path: ${matchedFilePath}`);
+        
+                        // Set the found file path as a variable for further use
+                        self.setVariableValues({ 'matched-presentation-file-path': matchedFilePath });
+                    } else {
+                        self.log('warn', `No presentation found with the entered password: ${enteredPassword}`);
+                    }
+                } catch (error) {
+                    self.log('error', `❌ Error in lookup_presentation_by_password: ${error.message}`);
+                }
+            }
         }
+        
     });
 };
