@@ -1,3 +1,6 @@
+const path = require('path'); // Add this line to import path
+const fs = require('fs');     // Add this too, since you're using fs (assuming it was missing here)
+
 module.exports = function (self) {
     self.setActionDefinitions({
         force_sync: {
@@ -270,6 +273,7 @@ module.exports = function (self) {
                 try {
                     // Get the password input
                     const enteredPassword = self.getVariableValue('presentation-password-input') || '';
+                    self.log('debug', `Entered password: "${enteredPassword}"`);
                     
                     if (!enteredPassword) {
                         self.log('warn', 'No password entered. Cannot perform lookup.');
@@ -285,6 +289,7 @@ module.exports = function (self) {
                     }
         
                     const filePath = path.join(baseDir, 'presentation_sync_data.json');
+                    self.log('debug', `Reading sync data from: ${filePath}`);
         
                     // Check if the sync file exists
                     if (!fs.existsSync(filePath)) {
@@ -294,6 +299,7 @@ module.exports = function (self) {
         
                     // Read and parse the JSON file
                     const fileContent = fs.readFileSync(filePath, 'utf-8');
+                    self.log('debug', `Sync data content: ${fileContent}`);
                     const syncData = JSON.parse(fileContent);
                     
                     if (!syncData.presentations || syncData.presentations.length === 0) {
@@ -301,14 +307,15 @@ module.exports = function (self) {
                         return;
                     }
         
+                    // Log all presenter passwords for debugging
+                    self.log('debug', `Presentation passwords: ${JSON.stringify(syncData.presentations.map(p => p.presenterPassword))}`);
+        
                     // Look for a presentation with the matching password
                     const matchingPresentation = syncData.presentations.find(p => p.presenterPassword === enteredPassword);
         
                     if (matchingPresentation) {
                         const matchedFilePath = matchingPresentation.filePath;
                         self.log('info', `✅ Matching presentation found! File Path: ${matchedFilePath}`);
-        
-                        // Set the found file path as a variable for further use
                         self.setVariableValues({ 'matched-presentation-file-path': matchedFilePath });
                     } else {
                         self.log('warn', `No presentation found with the entered password: ${enteredPassword}`);
@@ -318,6 +325,5 @@ module.exports = function (self) {
                 }
             }
         }
-        
     });
 };

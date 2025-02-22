@@ -836,7 +836,6 @@ class ModuleInstance extends InstanceBase {
 			let presentationBoardItems;
 			try {
 				presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-	
 				if (!presentationBoardItems || presentationBoardItems.length === 0) {
 					throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
 				}
@@ -844,13 +843,14 @@ class ModuleInstance extends InstanceBase {
 				throw new Error(`API call to Monday.com failed: ${error.message}`);
 			}
 	
+			// Determine the field ID based on terminal-type
 			const terminalType = this.config['terminal-type'];
 			const roomFieldId = terminalType === 'type-kit' 
 				? "connect_boards_mkn2244w" 
-				: "dup__of_room_info_mkn2spge"; // Replace with correct Speaker Ready field ID
-
+				: "dup__of_room_info_mkn2spge"; // Assuming this is the correct Speaker Ready field ID
+	
 			this.log('debug', `Using roomFieldId: ${roomFieldId} based on terminalType: ${terminalType}`);
-			
+	
 			// Filter out presentations that do not belong to `my-room`
 			const filteredPresentations = presentationBoardItems.filter(item => {
 				const roomInfoField = item.fields.find(field => field.id === roomFieldId);
@@ -873,21 +873,29 @@ class ModuleInstance extends InstanceBase {
 			});
 	
 			if (filteredPresentations.length === 0) {
-				this.log('warn', `No presentations found for Room ID: ${myRoomId}`);
+				this.log('warn', `No presentations found for Room ID: ${myRoomId} using field ${roomFieldId}`);
 				return [];
 			}
 	
-			// Get today's date in YYYY-MM-DD format
+			// Get today's date in YYYY-MM-DD format (only used for type-kit)
 			const todayDate = new Date().toISOString().split('T')[0];
 	
-			// Filter presentations to only include those happening TODAY
-			const todayPresentations = filteredPresentations.filter(p => {
-				const sessionDate = this.getFieldValue(p.fields, "date__1");
-				return sessionDate && sessionDate === todayDate;
-			});
+			// Apply date filter only for type-kit, sync all for type-speaker-ready
+			let validPresentations;
+			if (terminalType === 'type-kit') {
+				this.log('debug', `Filtering presentations to today (${todayDate}) for type-kit`);
+				const todayPresentations = filteredPresentations.filter(p => {
+					const sessionDate = this.getFieldValue(p.fields, "date__1");
+					return sessionDate && sessionDate === todayDate;
+				});
+				validPresentations = todayPresentations;
+			} else {
+				this.log('debug', `Syncing all presentations (no date filter) for type-speaker-ready`);
+				validPresentations = filteredPresentations;
+			}
 	
-			// Remove presentations missing start or end times
-			const validPresentations = todayPresentations.map((item) => ({
+			// Remove presentations missing start or end times and map to final format
+			validPresentations = validPresentations.map((item) => ({
 				id: item.id,
 				name: item.name,
 				presenter: this.getFieldValue(item.fields, "text__1"),
@@ -908,10 +916,11 @@ class ModuleInstance extends InstanceBase {
 			validPresentations.sort((a, b) => a.startTime - b.startTime);
 	
 			if (validPresentations.length === 0) {
-				this.log('warn', `No valid presentations scheduled for today in Room ID: ${myRoomId}`);
+				this.log('warn', `No valid presentations found for Room ID: ${myRoomId} after filtering`);
 				return [];
 			}
 	
+			this.log('info', `Returning ${validPresentations.length} valid presentations`);
 			return validPresentations;
 	
 		} catch (error) {
