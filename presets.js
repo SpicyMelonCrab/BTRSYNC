@@ -8,10 +8,10 @@ module.exports = function (self) {
             category: 'Sync Control',
             label: 'Force Sync',
             style: {
-                text: 'Force Sync',
-                size: '18',
+                text: 'Sync Now\n$(autosyncmodule:board-sync-status)',
+                size: '14',
                 color: combineRgb(255, 255, 255),
-                bgcolor: combineRgb(0, 0, 0)
+                //bgcolor: combineRgb(0, 0, 0)
             },
             steps: [
                 {
@@ -19,9 +19,32 @@ module.exports = function (self) {
                     up: []
                 }
             ],
-            feedbacks: [{ feedbackId: 'last_sync_status', options: {} }]
+            feedbacks: [
+                { 
+                    feedbackId: 'sync_status', 
+                    options: { status: 'Synced' },
+                    style: {
+                        bgcolor: combineRgb(0, 255, 0) // Green for "Synced"
+                    } 
+                },
+                { 
+                    feedbackId: 'sync_status', 
+                    options: { status: 'Offline' },
+                    style: {
+                        bgcolor: combineRgb(255, 255, 0) // Yellow for "Offline" 
+                    } 
+                },
+                { 
+                    feedbackId: 'sync_status', 
+                    options: { status: 'Last Sync Failed' },
+                    style: {
+                        bgcolor: combineRgb(255, 0, 0) // Red for "Last Sync Failed"
+                    } 
+                }
+            ]
         },
 
+        
         // Toggle Auto Sync (updated feedback style)
         'toggle_auto_sync': {
             type: 'button',
@@ -84,7 +107,7 @@ module.exports = function (self) {
             category: 'Presentation Control',
             label: 'Previous Presentation',
             style: {
-                text: 'Previous\n$(autosyncmodule:time-mode-disabled-presentation-position)',
+                text: 'Previous:\n$(autosyncmodule:presentation-name-p)',
                 size: '14',
                 color: combineRgb(255, 255, 255),
                 bgcolor: combineRgb(0, 102, 204)
@@ -104,7 +127,7 @@ module.exports = function (self) {
             category: 'Presentation Control',
             label: 'Next Presentation',
             style: {
-                text: 'Next\n$(autosyncmodule:time-mode-disabled-presentation-position)',
+                text: 'Next:\n$(autosyncmodule:presentation-name-n)',
                 size: '14',
                 color: combineRgb(255, 255, 255),
                 bgcolor: combineRgb(0, 102, 204)
@@ -124,10 +147,10 @@ module.exports = function (self) {
             category: 'Presentation Control',
             label: 'Begin Pres',
             style: {
-                text: 'Begin Curr. Presentation',
-                size: '18',
+                text: 'Launch:\n$(autosyncmodule:presentation-name-c)',
+                size: '14',
                 color: combineRgb(255, 255, 255),
-                bgcolor: combineRgb(255, 0, 0)
+                bgcolor: combineRgb(90, 255, 90)
             },
             steps: [
                 {
@@ -147,8 +170,8 @@ module.exports = function (self) {
             category: 'Password Control',
             label: 'Remove Letter',
             style: {
-                text: 'Backspace\n$(autosyncmodule:presentation-password-input)',
-                size: '14',
+                text: 'Backspace',
+                size: '12',
                 color: combineRgb(255, 255, 255),
                 bgcolor: combineRgb(204, 0, 0)
             },
@@ -177,7 +200,7 @@ module.exports = function (self) {
                     up: []
                 }
             ],
-            feedbacks: [{ feedbackId: 'last_sync_status', options: {} }]
+            feedbacks: []
         },
 
         // Lookup Presentation by Password (unchanged)

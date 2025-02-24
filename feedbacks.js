@@ -56,43 +56,27 @@ module.exports = function (self) {
                 return timeMode === 'enabled';
             }
         },
-		last_sync_status: {
-            type: 'advanced',
-            name: 'Sync Status',
-            description: 'Shows colors based on sync status',
-            options: [],
-            callback: (feedback) => {
+        sync_status: {
+            type: 'boolean',
+            name: 'Sync Status Color',
+            description: 'Change background color based on sync status',
+            options: [
+                {
+                    type: 'dropdown',
+                    label: 'Status',
+                    id: 'status',
+                    default: 'Synced',
+                    choices: [
+                        { id: 'Synced', label: 'Synced' },
+                        { id: 'Offline', label: 'Offline' },
+                        { id: 'Last Sync Failed', label: 'Last Sync Failed' }
+                    ]
+                }
+            ],
+            callback: (feedback) => {  // Change to arrow function to preserve context
                 const syncStatus = self.getVariableValue('board-sync-status');
-                self.log('debug', `Sync Status Feedback - Current Status: ${syncStatus}`);
-
-                // Log before returning each color
-                if (syncStatus === 'Synced') {
-                    self.log('debug', `Returning GREEN for Synced status`);
-                    return {
-                        bgcolor: combineRgb(0, 255, 0),
-                        color: combineRgb(255, 255, 255)
-                    };
-                }
-                if (syncStatus === 'Offline') {
-                    self.log('debug', `Returning YELLOW for Offline status`);
-                    return {
-                        bgcolor: combineRgb(255, 255, 0),
-                        color: combineRgb(0, 0, 0)
-                    };
-                }
-                if (syncStatus === 'Last Sync Failed') {
-                    self.log('debug', `Returning RED for Failed status`);
-                    return {
-                        bgcolor: combineRgb(255, 0, 0),
-                        color: combineRgb(255, 255, 255)
-                    };
-                }
-
-                self.log('debug', `Returning BLACK for unknown status: ${syncStatus}`);
-                return {
-                    bgcolor: combineRgb(0, 0, 0),
-                    color: combineRgb(255, 255, 255)
-                };
+                self.log('debug', `Sync Status Feedback - Requested: ${feedback.options.status}, Current: ${syncStatus}`);
+                return syncStatus === feedback.options.status;
             }
         }
     });

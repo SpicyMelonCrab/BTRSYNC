@@ -115,7 +115,7 @@ class ModuleInstance extends InstanceBase {
 		if (!mondayApiToken) {
 			this.log('error', 'Monday API Token is not set. Cannot query board.');
 			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
-			this.checkFeedbacks('last_sync_status');
+			this.checkFeedbacks('sync_status');
 			return;
 		}
 	
@@ -162,7 +162,7 @@ class ModuleInstance extends InstanceBase {
 			if (result.errors) {
 				this.log('error', `Error querying board ${boardId}: ${result.errors[0].message}`);
 				this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
-				this.checkFeedbacks('last_sync_status');
+				this.checkFeedbacks('sync_status');
 				return;
 			}
 	
@@ -767,7 +767,7 @@ class ModuleInstance extends InstanceBase {
 			if (timeMode === 'disabled') {
 				this.setVariableValues({'last-board-sync': now.toLocaleString()});
 				this.log('info', 'Time Mode is disabled. Presentation List updated, variables will not be updated to match time.');
-				this.checkFeedbacks('last_sync_status');
+				this.checkFeedbacks('sync_status');
 				return;
 			}
 	
@@ -821,12 +821,12 @@ class ModuleInstance extends InstanceBase {
 				'board-sync-status': 'Synced',
 				'last-board-sync': now.toLocaleString()
 			});
-			this.checkFeedbacks('last_sync_status');
+			this.checkFeedbacks('sync_status');
 	
 		} catch (error) {
 			this.log('error', `Error in syncEvent: ${error.message}`);
 			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
-			this.checkFeedbacks('last_sync_status');
+			this.checkFeedbacks('sync_status');
 			
 			// Only fall back to offline sync if not a force sync
 			if (!this.forceSyncInProgress) {
@@ -940,12 +940,6 @@ class ModuleInstance extends InstanceBase {
 	
 	async offlineSyncEvent() {
 		this.log('info', `🔄 Running offline sync using cached presentation data...`);
-
-		const terminalType = this.config['terminal-type'];
-		if (terminalType == 'type-speaker-ready'){
-			this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
-			return;
-		}
 	
 		// 📌 Determine the file path based on OS
 		let baseDir;
@@ -960,6 +954,14 @@ class ModuleInstance extends InstanceBase {
 		// 📌 Read the cached file
 		if (!fs.existsSync(filePath)) {
 			this.log('warn', `⚠ Cached presentation data not found. Skipping offline sync.`);
+			return;
+		}
+
+		const terminalType = this.config['terminal-type'];
+		if (terminalType == 'type-speaker-ready'){
+			this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
+			this.setVariableValues({'board-sync-status': 'Offline'})
+			set
 			return;
 		}
 	
@@ -1009,7 +1011,7 @@ class ModuleInstance extends InstanceBase {
 		if (timeMode === 'disabled') {
 			this.log('info', '⚠ Time Mode is disabled - skipping presentation updates');
 			this.setVariableValues({ 'board-sync-status': 'Offline' });
-			this.checkFeedbacks('last_sync_status');
+			this.checkFeedbacks('sync_status');
 			return;
 		}
 	
@@ -1097,7 +1099,7 @@ class ModuleInstance extends InstanceBase {
 
 		 // Add these debug logs
 		 const currentStatus = this.getVariableValue('board-sync-status');
-		 this.checkFeedbacks('last_sync_status');
+		 this.checkFeedbacks('sync_status');
 		 this.log('info', `Offline Time Mode Sync Complete!`);
 
 	}
@@ -1263,7 +1265,7 @@ class ModuleInstance extends InstanceBase {
 						'last-board-sync': new Date().toLocaleString(),
 						'board-sync-status': 'Synced'
 					});
-					this.checkFeedbacks('last_sync_status');
+					this.checkFeedbacks('sync_status');
 				}
 			});
 		} catch (error) {
