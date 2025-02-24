@@ -19,6 +19,9 @@ class ModuleInstance extends InstanceBase {
 		this.updateActions() // export actions
 		this.updateFeedbacks() // export feedbacks
 		this.updateVariableDefinitions() // export variable definitions
+
+		// Set up presets
+        this.setPresetDefinitions(require('./presets')(this));
 	
 		// SET DEFAULT VARIABLES ON FIRST RUN
 		this.setVariableValues({
@@ -653,7 +656,7 @@ class ModuleInstance extends InstanceBase {
 	
 		// Fetch polling rate (convert minutes to milliseconds)
 		const pollingRateMinutes = this.config['polling-rate-minutes'] || 1;
-		const pollingRateMs = pollingRateMinutes * 10 * 1000; // CHANGE 10 to 60. 
+		const pollingRateMs = pollingRateMinutes * 60 * 1000;
 	
 		this.log('info', `Starting syncing process. Polling every ${pollingRateMinutes} minute(s).`);
 	
