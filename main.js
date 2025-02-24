@@ -704,6 +704,12 @@ class ModuleInstance extends InstanceBase {
 			
 			// Write to cache file
 			await this.writeSyncDataToFile(validPresentations);
+
+			const terminalType = this.config['terminal-type'];
+			if (terminalType == 'type-speaker-ready'){
+				this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
+				return;
+			}
 	
 			// Capture the local time
 			const now = new Date();
@@ -934,6 +940,12 @@ class ModuleInstance extends InstanceBase {
 	
 	async offlineSyncEvent() {
 		this.log('info', `🔄 Running offline sync using cached presentation data...`);
+
+		const terminalType = this.config['terminal-type'];
+		if (terminalType == 'type-speaker-ready'){
+			this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
+			return;
+		}
 	
 		// 📌 Determine the file path based on OS
 		let baseDir;
@@ -1406,7 +1418,7 @@ class ModuleInstance extends InstanceBase {
 				const nextPresentation = currentIndex < validPresentations.length - 1 ? validPresentations[currentIndex + 1] : null;
 		
 				// Debug log the full presentation data
-				this.log('info', `Current Presentation Data: ${JSON.stringify(currentPresentation, null, 2)}`);
+				//this.log('info', `Current Presentation Data: ${JSON.stringify(currentPresentation, null, 2)}`);
 		
 				// Log the selections
 				this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
