@@ -36,7 +36,11 @@ module.exports = function (self) {
 		{ variableId: 'synced-project-overview-item-id', name: 'Synced Project Overview ID' },
 		{ variableId: 'synced-room-info-board', name: 'Synced Room Info Board' },
 		{ variableId: 'synced-presentation-management-board', name: 'Synced Pres. Mgmt Board' },
+		{ variableId: 'synced-help-requests-board', name: 'Synced Help Requests Board' },
 		{ variableId: 'presentation-password-input', name: 'Presentation Password Input' },
 		{ variableId: 'my-room', name: 'My Room' },
+		{ variableId: 'help-request-status', name: 'Help request Status' },
+		{ variableId: 'help-request-item-id', name: 'Help Request Item ID' },
+
 	])
 }

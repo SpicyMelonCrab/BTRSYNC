@@ -59,9 +59,11 @@ class ModuleInstance extends InstanceBase {
 			'synced-project-overview-item-id': 'Unknown',
 			'last-board-sync': 'Never',
 			'synced-room-info-board' : 'unknown',
+			'synced-help-requests-board' : 'unknown',
 			'synced-presentation-management-board': 'unknown',
 			'my-room': "Unknown",
-			'presentation-password-input': ""
+			'presentation-password-input': "",
+			'help-request-status': "no request"
 		});
 		
 		 // Collect information on all Kits.
@@ -537,6 +539,7 @@ class ModuleInstance extends InstanceBase {
 											this.setVariableValues({
 												'synced-project-overview-item-id': matchedProjectId,
 												'synced-room-info-board': tempVariables['room-info-id'],
+												'synced-help-requests-board': tempVariables['help-requests-id'],
 												'synced-presentation-management-board': tempVariables['presentation-mngr-id'],
 												'my-room': matchedRoomId || 'Unknown'
 											});
@@ -595,6 +598,7 @@ class ModuleInstance extends InstanceBase {
 											this.setVariableValues({
 												'synced-project-overview-item-id': matchedProjectId,
 												'synced-room-info-board': tempVariables['room-info-id'],
+												'synced-help-requests-board': tempVariables['help-requests-id'],
 												'synced-presentation-management-board': tempVariables['presentation-mngr-id'],
 												'my-room': matchedRoomId || 'Unknown'
 											});

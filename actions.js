@@ -14,7 +14,7 @@ module.exports = function (self) {
                 self.forceSyncInProgress = true;
                 
                 await self.syncEvent();
-                self.checkFeedbacks('last_sync_status');
+                self.checkFeedbacks('sync_status');
             }
         },
         toggle_auto_sync: {
@@ -322,6 +322,255 @@ module.exports = function (self) {
                     }
                 } catch (error) {
                     self.log('error', `❌ Error in lookup_presentation_by_password: ${error.message}`);
+                }
+            }
+        },
+        request_help: {
+            name: 'Request Help',
+            description: 'Requests help by querying the group ID, finding a matching subitem, and sending assigned crew details plus synced variables to a webhook.',
+            options: [],
+            callback: async () => {
+                // Get the my-room value
+                const myRoomId = self.getVariableValue('my-room') || 'Unknown';
+                self.log('info', `Request Help triggered. Fetching details for room ID: ${myRoomId}`);
+
+                // Check if my-room is valid
+                if (myRoomId === 'Unknown') {
+                    self.log('error', 'No room ID set in my-room variable. Cannot request help.');
+                    return;
+                }
+
+                // Get the Monday API token from config
+                const mondayApiToken = self.config['monday-api-token'];
+                if (!mondayApiToken) {
+                    self.log('error', 'Monday API Token is not set. Cannot query room details.');
+                    return;
+                }
+
+                try {
+                    // Step 1: Query the item to get its group
+                    const roomResponse = await fetch('https://api.monday.com/v2', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': mondayApiToken
+                        },
+                        body: JSON.stringify({
+                            query: `
+                                query {
+                                    items(ids: [${myRoomId}]) {
+                                        id
+                                        name
+                                        group {
+                                            id
+                                            title
+                                        }
+                                    }
+                                }
+                            `
+                        })
+                    });
+
+                    if (!roomResponse.ok) {
+                        throw new Error(`HTTP error fetching room! Status: ${roomResponse.status}`);
+                    }
+
+                    const roomResult = await roomResponse.json();
+                    if (roomResult.errors) {
+                        throw new Error(`API error fetching room: ${roomResult.errors[0].message}`);
+                    }
+
+                    const item = roomResult.data.items[0];
+                    if (!item) {
+                        self.log('error', `No item found for room ID: ${myRoomId}`);
+                        return;
+                    }
+
+                    const groupId = item.group?.id;
+                    if (!groupId) {
+                        self.log('warn', `Room ID ${myRoomId} (${item.name}) does not belong to any group.`);
+                        return;
+                    }
+
+                    self.log('info', `Room '${item.name}' (ID: ${myRoomId}) belongs to group ID: ${groupId}`);
+                    self.setVariableValues({ 'help-request-status': 'help requested' });
+                    self.log('info', `Help request status updated to 'help requested' for room ID: ${myRoomId}`);
+
+                    // Step 2: Query subitems of synced-project-overview-item-id
+                    const projectOverviewId = self.getVariableValue('synced-project-overview-item-id') || 'Unknown';
+                    if (projectOverviewId === 'Unknown') {
+                        self.log('error', 'No synced project overview item ID set. Cannot query subitems.');
+                        return;
+                    }
+
+                    const subitemsResponse = await fetch('https://api.monday.com/v2', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': mondayApiToken
+                        },
+                        body: JSON.stringify({
+                            query: `
+                                query {
+                                    items(ids: [${projectOverviewId}]) {
+                                        id
+                                        name
+                                        subitems {
+                                            id
+                                            name
+                                            column_values {
+                                                id
+                                                text
+                                                value
+                                            }
+                                        }
+                                    }
+                                }
+                            `
+                        })
+                    });
+
+                    if (!subitemsResponse.ok) {
+                        throw new Error(`HTTP error fetching subitems! Status: ${subitemsResponse.status}`);
+                    }
+
+                    const subitemsResult = await subitemsResponse.json();
+                    if (subitemsResult.errors) {
+                        throw new Error(`API error fetching subitems: ${subitemsResult.errors[0].message}`);
+                    }
+
+                    const projectItem = subitemsResult.data.items[0];
+                    if (!projectItem || !projectItem.subitems || projectItem.subitems.length === 0) {
+                        self.log('warn', `No subitems found for project overview item ID: ${projectOverviewId}`);
+                        return;
+                    }
+
+                    self.log('info', `Found ${projectItem.subitems.length} subitems for project overview ID: ${projectOverviewId}`);
+
+                    // Step 3: Find subitem where text_mknfse2p matches groupId
+                    let matchingSubitem = null;
+                    for (const subitem of projectItem.subitems) {
+                        const groupField = subitem.column_values.find(col => col.id === 'text_mknfse2p');
+                        if (groupField && groupField.text === groupId) {
+                            matchingSubitem = subitem;
+                            break;
+                        }
+                    }
+
+                    if (!matchingSubitem) {
+                        self.log('warn', `No subitem found with text_mknfse2p matching group ID: ${groupId}`);
+                        return;
+                    }
+
+                    self.log('info', `Found matching subitem: ${matchingSubitem.name} (ID: ${matchingSubitem.id})`);
+
+                    // Step 4: Extract person IDs from multiple_person_mknfrr5d
+                    const personField = matchingSubitem.column_values.find(col => col.id === 'multiple_person_mknfrr5d');
+                    if (!personField || !personField.value || personField.value === 'N/A') {
+                        self.log('warn', `No assigned crew found in subitem ${matchingSubitem.id}`);
+                        return;
+                    }
+
+                    let personsAndTeams;
+                    try {
+                        personsAndTeams = JSON.parse(personField.value).personsAndTeams || [];
+                    } catch (error) {
+                        self.log('error', `Failed to parse multiple_person_mknfrr5d value: ${error.message}`);
+                        return;
+                    }
+
+                    const personIds = personsAndTeams
+                        .filter(pt => pt.kind === 'person')
+                        .map(pt => pt.id);
+
+                    if (personIds.length === 0) {
+                        self.log('warn', `No person IDs found in multiple_person_mknfrr5d for subitem ${matchingSubitem.id}`);
+                        return;
+                    }
+
+                    self.log('info', `Assigned crew person IDs for subitem ${matchingSubitem.id}: ${personIds.join(', ')}`);
+
+                    // Step 5: Batch fetch all persons' details in one API call
+                    const userResponse = await fetch('https://api.monday.com/v2', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': mondayApiToken
+                        },
+                        body: JSON.stringify({
+                            query: `
+                                query {
+                                    users(ids: [${personIds.join(', ')}]) {
+                                        id
+                                        name
+                                        phone
+                                        mobile_phone
+                                    }
+                                }
+                            `
+                        })
+                    });
+
+                    if (!userResponse.ok) {
+                        throw new Error(`HTTP error fetching users! Status: ${userResponse.status}`);
+                    }
+
+                    const userResult = await userResponse.json();
+                    if (userResult.errors) {
+                        throw new Error(`API error fetching users: ${userResult.errors[0].message}`);
+                    }
+
+                    const users = userResult.data.users || [];
+                    if (users.length === 0) {
+                        self.log('warn', `No users found for IDs: ${personIds.join(', ')}`);
+                        return;
+                    }
+
+                    // Collect user details for webhook
+                    const crewDetails = users.map(user => ({
+                        id: user.id,
+                        name: user.name,
+                        phone: user.phone || 'Not provided',
+                        cell_phone: user.mobile_phone || 'Not provided'
+                    }));
+
+                    crewDetails.forEach(crew => {
+                        self.log('info', `Crew member: ${crew.name} (ID: ${crew.id}), Phone: ${crew.phone}, Cell Phone: ${crew.cell_phone}`);
+                    });
+
+                    // Step 6: Send data to webhook with additional variables
+                    const webhookUrl = 'https://hook.us2.make.com/kboux2kuf6plzh89l4b7lgnot1g2gsq1';
+                    const payload = {
+                        roomId: myRoomId,
+                        roomName: item.name,
+                        groupId: groupId,
+                        subitemId: matchingSubitem.id,
+                        subitemName: matchingSubitem.name,
+                        crew: crewDetails,
+                        syncedProjectOverviewItemId: self.getVariableValue('synced-project-overview-item-id') || 'Unknown',
+                        syncedRoomInfoBoard: self.getVariableValue('synced-room-info-board') || 'Unknown',
+                        syncedPresentationManagementBoard: self.getVariableValue('synced-presentation-management-board') || 'Unknown',
+                        syncedHelpRequestsBoard: self.getVariableValue('synced-help-requests-board') || 'Unknown'
+                    };
+
+                    self.log('info', `Sending help request data to webhook: ${JSON.stringify(payload, null, 2)}`);
+
+                    const webhookResponse = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!webhookResponse.ok) {
+                        throw new Error(`Webhook error! Status: ${webhookResponse.status}`);
+                    }
+
+                    self.log('info', `Successfully sent help request to webhook. Status: ${webhookResponse.status}`);
+
+                } catch (error) {
+                    self.log('error', `Failed during Request Help action: ${error.message}`);
                 }
             }
         }
