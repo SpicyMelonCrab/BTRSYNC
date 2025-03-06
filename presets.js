@@ -182,6 +182,7 @@ module.exports = function (self) {
                 }
             ]
         },
+        
 
         // Reset Sync (unchanged for now)
         'reset_sync': {
@@ -201,6 +202,32 @@ module.exports = function (self) {
                 }
             ],
             feedbacks: []
+        },
+        'three_way_sync_from_sr': {
+            type: 'button',
+            category: 'Password Control',
+            label: '3 Way Sync from SR',
+            style: {
+                text: '3-Way Sync\n$(autosyncmodule:presentation-password-input)',
+                size: '14',
+                color: combineRgb(255, 255, 255),
+                bgcolor: combineRgb(0, 153, 204) // Teal-ish for SR sync
+            },
+            steps: [
+                {
+                    down: [{ actionId: 'three_way_sync_from_sr', options: {} }],
+                    up: []
+                }
+            ],
+            feedbacks: [
+                {
+                    feedbackId: 'sync_status', // Reuse existing feedback
+                    options: { status: 'Synced' },
+                    style: {
+                        bgcolor: combineRgb(0, 255, 0) // Green when synced
+                    }
+                }
+            ]
         },
 
         // Lookup Presentation by Password (unchanged)

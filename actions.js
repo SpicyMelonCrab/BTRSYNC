@@ -325,6 +325,86 @@ module.exports = function (self) {
                 }
             }
         },
+        three_way_sync_from_sr: {
+            name: '3 Way Sync from SR',
+            description: 'Triggers a Make.com webhook for a 3-way sync using the entered presenter password (SR mode).',
+            options: [],
+            callback: async () => {
+                try {
+                    // Get the entered password
+                    const enteredPassword = self.getVariableValue('presentation-password-input') || '';
+                    self.log('debug', `Entered password for 3-way sync: "${enteredPassword}"`);
+
+                    if (!enteredPassword) {
+                        self.log('warn', 'No password entered. Cannot perform 3-way sync.');
+                        return;
+                    }
+
+                    // Determine the file path based on OS
+                    let baseDir;
+                    if (process.platform === 'win32') {
+                        baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+                    } else {
+                        baseDir = path.join('/var/lib', 'BitCompanionSync');
+                    }
+
+                    const filePath = path.join(baseDir, 'presentation_sync_data.json');
+                    self.log('debug', `Reading sync data from: ${filePath}`);
+
+                    // Check if the sync file exists
+                    if (!fs.existsSync(filePath)) {
+                        self.log('error', 'Sync data file not found. Cannot perform 3-way sync.');
+                        return;
+                    }
+
+                    // Read and parse the JSON file
+                    const fileContent = fs.readFileSync(filePath, 'utf-8');
+                    const syncData = JSON.parse(fileContent);
+
+                    if (!syncData.presentations || syncData.presentations.length === 0) {
+                        self.log('warn', 'No presentations found in sync data.');
+                        return;
+                    }
+
+                    // Find the presentation with the matching password
+                    const matchingPresentation = syncData.presentations.find(p => p.presenterPassword === enteredPassword);
+                    if (!matchingPresentation) {
+                        self.log('warn', `No presentation found with password: ${enteredPassword}`);
+                        return;
+                    }
+
+                    const presentationId = matchingPresentation.id;
+                    self.log('info', `Found presentation ID ${presentationId} for password ${enteredPassword}`);
+
+                    // Webhook URL
+                    const webhookUrl = 'https://hook.us2.make.com/to27747231iwlbon7gbavfmgj5phnrwj';
+
+                    // Payload with presentation ID
+                    const payload = {
+                        presentationId: presentationId
+                    };
+
+                    self.log('info', `Sending to webhook for 3-way sync: ${JSON.stringify(payload)}`);
+
+                    // Trigger the webhook
+                    const response = await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Webhook error! Status: ${response.status}`);
+                    }
+
+                    self.log('info', `Successfully triggered 3-way sync webhook for presentation ID: ${presentationId}`);
+                } catch (error) {
+                    self.log('error', `Failed to perform 3-way sync: ${error.message}`);
+                }
+            }
+        },
         request_help: {
             name: 'Request Help',
             description: 'Requests help by querying the group ID, finding a matching subitem, and sending assigned crew details plus synced variables to a webhook.',
