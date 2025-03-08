@@ -847,36 +847,27 @@ class ModuleInstance extends InstanceBase {
 	async getTodaysPresentations(presentationManagementBoardId, myRoomId) {
 		try {
 			this.log('info', `Querying Presentation Management Board (ID: ${presentationManagementBoardId})...`);
-			let presentationBoardItems;
-			try {
-				presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
-				if (!presentationBoardItems || presentationBoardItems.length === 0) {
-					throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
-				}
-			} catch (error) {
-				throw new Error(`API call to Monday.com failed: ${error.message}`);
+			let presentationBoardItems = await this.queryMondayBoard(presentationManagementBoardId);
+			if (!presentationBoardItems || presentationBoardItems.length === 0) {
+				throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
 			}
 	
-			// Determine the field ID based on terminal-type
 			const terminalType = this.config['terminal-type'];
 			const roomFieldId = terminalType === 'type-kit' 
 				? "connect_boards_mkn2244w" 
-				: "dup__of_room_info_mkn2spge"; // Assuming this is the correct Speaker Ready field ID
+				: "dup__of_room_info_mkn2spge";
 	
 			this.log('debug', `Using roomFieldId: ${roomFieldId} based on terminalType: ${terminalType}`);
 	
-			// Filter out presentations that do not belong to `my-room`
 			const filteredPresentations = presentationBoardItems.filter(item => {
 				const roomInfoField = item.fields.find(field => field.id === roomFieldId);
-	
 				if (!roomInfoField || roomInfoField.raw_value === "N/A") {
-					return false; // Exclude items with no valid room info
+					return false;
 				}
-	
 				try {
 					const rawData = JSON.parse(roomInfoField.raw_value);
 					if (!rawData.linkedPulseIds || rawData.linkedPulseIds.length === 0) {
-						return false; // No linked rooms
+						return false;
 					}
 					const linkedRoomIds = rawData.linkedPulseIds.map(link => link.linkedPulseId.toString());
 					return linkedRoomIds.includes(myRoomId.toString());
@@ -891,13 +882,10 @@ class ModuleInstance extends InstanceBase {
 				return [];
 			}
 	
-			// Get today's date in YYYY-MM-DD format (only used for type-kit)
-			// Use local date instead of UTC
 			const today = new Date();
 			const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 			this.log('info', `Filtering presentations for local date: ${todayDate}`);
 	
-			// Apply date filter only for type-kit, sync all for type-speaker-ready
 			let validPresentations;
 			if (terminalType === 'type-kit') {
 				this.log('debug', `Filtering presentations to today (${todayDate}) for type-kit`);
@@ -911,25 +899,28 @@ class ModuleInstance extends InstanceBase {
 				validPresentations = filteredPresentations;
 			}
 	
-			// Remove presentations missing start or end times and map to final format
-			validPresentations = validPresentations.map((item) => ({
-				id: item.id,
-				name: item.name,
-				presenter: this.getFieldValue(item.fields, "text__1"),
-				designation: this.getFieldValue(item.fields, "text9__1"),
-				sessionDate: this.getFieldValue(item.fields, "date__1"),
-				startTime: this.parseTime(this.getFieldValue(item.fields, "hour__1")),
-				endTime: this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1")),
-				allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
-				record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
-				stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
-				streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1"),
-				filePath: this.getFieldValue(item.fields, "text_mkna2hcs"),
-				presenterPassword: this.getFieldValue(item.fields, "text_mkmvmmgp"),
-				speakerReadyFilePath: this.getFieldValue(item.fields, "text_mkncbg3r")
-			})).filter(p => p.startTime && p.endTime);
+			validPresentations = validPresentations.map((item) => {
+				const sessionDate = this.getFieldValue(item.fields, "date__1");
+				const startTime = this.parseTime(this.getFieldValue(item.fields, "hour__1"), sessionDate);
+				const endTime = this.parseTime(this.getFieldValue(item.fields, "dup__of_start_time__1"), sessionDate);
+				return {
+					id: item.id,
+					name: item.name,
+					presenter: this.getFieldValue(item.fields, "text__1"),
+					designation: this.getFieldValue(item.fields, "text9__1"),
+					sessionDate: sessionDate,
+					startTime: startTime,
+					endTime: endTime,
+					allowDemo: this.convertCheckboxValue(this.getFieldValue(item.fields, "checkbox__1")),
+					record: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_demo__1")),
+					stream: this.convertCheckboxValue(this.getFieldValue(item.fields, "dup__of_allow_records__1")),
+					streamAddress: this.getFieldValue(item.fields, "dup__of_notes__1"),
+					filePath: this.getFieldValue(item.fields, "text_mkna2hcs"),
+					presenterPassword: this.getFieldValue(item.fields, "text_mkmvmmgp"),
+					speakerReadyFilePath: this.getFieldValue(item.fields, "text_mkncbg3r")
+				};
+			}).filter(p => p.startTime && p.endTime);
 	
-			// Sort presentations by start time (earliest first)
 			validPresentations.sort((a, b) => a.startTime - b.startTime);
 	
 			if (validPresentations.length === 0) {
@@ -939,7 +930,6 @@ class ModuleInstance extends InstanceBase {
 	
 			this.log('info', `Returning ${validPresentations.length} valid presentations`);
 			return validPresentations;
-	
 		} catch (error) {
 			this.log('error', `Error in getTodaysPresentations: ${error.message}`);
 			throw error;
@@ -1148,10 +1138,16 @@ class ModuleInstance extends InstanceBase {
 	/**
 	 * Parses time in format "hh:mm AM/PM" and returns a Date object
 	 */
-	parseTime(timeStr) {
-		if (!timeStr || timeStr === "N/A") return "Unknown";
+	parseTime(timeStr, sessionDate = null) {
+		if (!timeStr || timeStr === "N/A") return null;
 	
-		const now = new Date();
+		// Use sessionDate if provided, otherwise use current local date
+		const baseDate = sessionDate ? new Date(sessionDate) : new Date();
+		if (!baseDate || isNaN(baseDate)) {
+			this.log('error', `Invalid session date provided: ${sessionDate}`);
+			return null;
+		}
+	
 		const [time, modifier] = timeStr.split(" ");
 		let [hours, minutes] = time.split(":").map(Number);
 	
@@ -1161,12 +1157,10 @@ class ModuleInstance extends InstanceBase {
 			hours = 0;
 		}
 	
-		now.setHours(hours, minutes, 0, 0);
-		
-		// Log to verify if time is correctly parsed
-		//this.log('info', `✅ Parsed time '${timeStr}' to: ${now}`);
-	
-		return now;
+		// Set hours and minutes directly in local time
+		baseDate.setHours(hours, minutes, 0, 0);
+		this.log('debug', `Parsed time '${timeStr}' as local time: ${baseDate.toLocaleString()}`);
+		return baseDate;
 	}
 	
 	
@@ -1198,70 +1192,49 @@ class ModuleInstance extends InstanceBase {
 	// SAVING // CACHING SYSTEM
 	writeSyncDataToFile(filteredPresentations) {
 		try {
-
-			 // 📌 Log the full array of filtered presentations before processing (FOR DEBUGGING)
-			//this.log('info', `🔍 Raw filteredPresentations: ${JSON.stringify(filteredPresentations, null, 2)}`);
-
-			// Ensure `filteredPresentations` is an array before proceeding
-			if (!Array.isArray(filteredPresentations) || filteredPresentations.length === 0) {
-				this.log('error', '❌ Invalid or empty data: filteredPresentations is not an array.');
+			if (!filteredPresentations || filteredPresentations.length === 0) {
+				this.log('warn', 'No presentations to write to file');
 				return;
 			}
 	
-			// 📌 Determine the global storage path based on OS
 			let baseDir;
 			if (process.platform === 'win32') {
 				baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
 			} else {
-				baseDir = path.join('/var/lib', 'BitCompanionSync'); // Linux/Mac
+				baseDir = path.join('/var/lib', 'BitCompanionSync');
 			}
 	
-			// 📌 Ensure the directory exists
 			if (!fs.existsSync(baseDir)) {
 				fs.mkdirSync(baseDir, { recursive: true });
 				this.log('info', `📂 Created global directory: ${baseDir}`);
 			}
 	
-			// 📌 Define the file path inside the global directory
 			const filePath = path.join(baseDir, 'presentation_sync_data.json');
 	
-			// 📌 Prepare the export data
-			// Extract correct values from fields
 			const exportData = {
-				timestamp: new Date().toISOString(),
+				timestamp: new Date().toLocaleString(), // Store timestamp as local time string
 				lastBoardSync: this.getVariableValue('last-board-sync') || "Unknown",
 				syncedRoomInfoBoard: this.getVariableValue('synced-room-info-board') || "Unknown",
 				syncedPresentationManagementBoard: this.getVariableValue('synced-presentation-management-board') || "Unknown",
 				myRoom: this.getVariableValue('my-room') || "Unknown",
-				presentations: filteredPresentations.map(presentation => {
-					return {
-						id: presentation.id || "Unknown",
-						name: presentation.name || "Unknown",
-						presenter: presentation.presenter || "Unknown",
-						designation: presentation.designation || "Unknown",
-						sessionDate: presentation.sessionDate || "Unknown",
-						startTime: presentation.startTime,
-						endTime: presentation.endTime,
-						allowDemo: presentation.allowDemo || "Unknown",
-						record: presentation.record || "Unknown",
-						stream: presentation.stream || "Unknown",
-						streamAddress: presentation.streamAddress || "Unknown",
-						filePath: presentation.filePath || "Unknown",
-						presenterPassword: presentation.presenterPassword || "Unknown",
-						speakerReadyFilePath: presentation.speakerReadyFilePath || "Unknown"
-					};
-				})
+				presentations: filteredPresentations.map(presentation => ({
+					id: presentation.id || "Unknown",
+					name: presentation.name || "Unknown",
+					presenter: presentation.presenter || "Unknown",
+					designation: presentation.designation || "Unknown",
+					sessionDate: presentation.sessionDate || "Unknown",
+					startTime: presentation.startTime ? presentation.startTime.toLocaleString() : "Unknown",
+					endTime: presentation.endTime ? presentation.endTime.toLocaleString() : "Unknown",
+					allowDemo: presentation.allowDemo || "Unknown",
+					record: presentation.record || "Unknown",
+					stream: presentation.stream || "Unknown",
+					streamAddress: presentation.streamAddress || "Unknown",
+					filePath: presentation.filePath || "Unknown",
+					presenterPassword: presentation.presenterPassword || "Unknown",
+					speakerReadyFilePath: presentation.speakerReadyFilePath || "Unknown"
+				}))
 			};
-
 	
-			// 📌 Debugging: Log first presentation object for troubleshooting
-			if (exportData.presentations.length > 0) {
-				//this.log('info', `🛠 First Presentation Object for Debugging: ${JSON.stringify(exportData.presentations[0], null, 2)}`);
-			} else {
-				//this.log('warn', `⚠ No presentations to save.`);
-			}
-
-			// 📌 Write the data to a JSON file
 			const tempFilePath = filePath + '.tmp';
 			fs.writeFile(tempFilePath, JSON.stringify(exportData, null, 2), (err) => {
 				if (err) {
