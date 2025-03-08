@@ -892,7 +892,10 @@ class ModuleInstance extends InstanceBase {
 			}
 	
 			// Get today's date in YYYY-MM-DD format (only used for type-kit)
-			const todayDate = new Date().toISOString().split('T')[0];
+			// Use local date instead of UTC
+			const today = new Date();
+			const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+			this.log('info', `Filtering presentations for local date: ${todayDate}`);
 	
 			// Apply date filter only for type-kit, sync all for type-speaker-ready
 			let validPresentations;
@@ -1389,7 +1392,8 @@ class ModuleInstance extends InstanceBase {
 						validPresentations = cachedData.presentations;
 						
 						// Filter for today's presentations
-						const todayDate = new Date().toISOString().split('T')[0];
+						const today = new Date();
+						const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 						this.log('info', `Filtering for today's date: ${todayDate}`);
 						this.log('info', `Total presentations in cache before filtering: ${validPresentations.length}`);
 						
