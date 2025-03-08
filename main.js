@@ -63,7 +63,8 @@ class ModuleInstance extends InstanceBase {
 			'synced-presentation-management-board': 'unknown',
 			'my-room': "Unknown",
 			'presentation-password-input': "",
-			'help-request-status': "no request"
+			'help-request-status': "no request",
+			'current-sr-file-path': "Not set"
 		});
 		
 		 // Collect information on all Kits.
@@ -877,8 +878,8 @@ class ModuleInstance extends InstanceBase {
 					if (!rawData.linkedPulseIds || rawData.linkedPulseIds.length === 0) {
 						return false; // No linked rooms
 					}
-					const linkedRoomId = rawData.linkedPulseIds[0].linkedPulseId;
-					return linkedRoomId.toString() === myRoomId.toString();
+					const linkedRoomIds = rawData.linkedPulseIds.map(link => link.linkedPulseId.toString());
+					return linkedRoomIds.includes(myRoomId.toString());
 				} catch (error) {
 					this.log('error', `Error parsing Room Info for item ${item.id}: ${error.message}`);
 					return false;

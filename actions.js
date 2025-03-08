@@ -316,7 +316,7 @@ module.exports = function (self) {
                     if (matchingPresentation) {
                         const matchedFilePath = matchingPresentation.filePath;
                         self.log('info', `✅ Matching presentation found! File Path: ${matchedFilePath}`);
-                        self.setVariableValues({ 'matched-presentation-file-path': matchedFilePath });
+                        self.setVariableValues({ 'current-sr-file-path': matchedFilePath });
                     } else {
                         self.log('warn', `No presentation found with the entered password: ${enteredPassword}`);
                     }
@@ -378,10 +378,12 @@ module.exports = function (self) {
 
                     // Webhook URL
                     const webhookUrl = 'https://hook.us2.make.com/to27747231iwlbon7gbavfmgj5phnrwj';
+                    const myRoomId = self.getVariableValue('my-room') || 'Unknown';
 
                     // Payload with presentation ID
                     const payload = {
-                        presentationId: presentationId
+                        presentationId: presentationId,
+                        roomId: myRoomId
                     };
 
                     self.log('info', `Sending to webhook for 3-way sync: ${JSON.stringify(payload)}`);

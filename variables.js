@@ -41,6 +41,7 @@ module.exports = function (self) {
 		{ variableId: 'my-room', name: 'My Room' },
 		{ variableId: 'help-request-status', name: 'Help request Status' },
 		{ variableId: 'help-request-item-id', name: 'Help Request Item ID' },
+		{ variableId: 'current-sr-file-path', name: 'Current SR Presentation File Path' },
 
 	])
 }
