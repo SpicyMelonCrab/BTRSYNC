@@ -38,13 +38,17 @@ module.exports = function (self) {
                 const newStatus = currentStatus === 'enabled' ? 'disabled' : 'enabled';
                 self.setVariableValues({ 'time-mode': newStatus });
                 self.log('info', `Time Mode changed to: ${newStatus}`);
-                self.checkFeedbacks('time_mode_status');  // Add this line to check feedback
-
+                self.checkFeedbacks('time_mode_status');
+        
                 if (newStatus === 'disabled') {
                     self.log('info', 'Time Mode disabled - Determining current presentation position.');
                     await self.updatePresentationPosition();
                     self.log('info', 'Setting manual presentation based on position.');
                     await self.setManualPresentationPosition();
+                } else {
+                    // If time mode is being enabled, trigger an immediate sync event
+                    self.log('info', 'Time Mode enabled - triggering immediate sync event');
+                    await self.syncEvent();
                 }
             }
         },
