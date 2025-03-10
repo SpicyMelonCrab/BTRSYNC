@@ -185,8 +185,8 @@ module.exports = function (self) {
         
                 const currentPassword = self.getVariableValue('presentation-password-input') || '';
         
-                if (currentPassword.length >= 5) {
-                    self.log('info', 'Password input already at max length (5 characters).');
+                if (currentPassword.length >= 4) {
+                    self.log('info', 'Password input already at max length (4 characters).');
                     return;
                 }
         
