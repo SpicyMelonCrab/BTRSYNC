@@ -707,6 +707,14 @@ class ModuleInstance extends InstanceBase {
 		try {
 			const validPresentations = await this.getTodaysPresentations(presentationManagementBoardId, myRoomId);
 			
+			/// Check if validPresentations is empty or undefined
+			if (!validPresentations || validPresentations.length === 0) {
+				this.log('warn', 'No valid presentations returned. Switching to offline mode.');
+				await this.offlineSyncEvent();
+				return;
+			}
+
+
 			// Write to cache file
 			await this.writeSyncDataToFile(validPresentations);
 
@@ -1389,6 +1397,13 @@ class ModuleInstance extends InstanceBase {
 						const cachedData = JSON.parse(fileContent);
 						validPresentations = cachedData.presentations;
 						
+						// IMPORTANT: Convert string dates back to Date objects
+						this.log('info', `Converting date strings to Date objects`);
+						validPresentations.forEach(p => {
+							p.startTime = new Date(p.startTime);
+							p.endTime = new Date(p.endTime);
+						});
+
 						// Filter for today's presentations
 						const today = new Date();
 						const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

@@ -270,6 +270,53 @@ module.exports = function (self) {
             description: 'Clears all synced variables and forces a fresh start from project overview detection.',
             options: [],
             callback: async () => {
+                self.log('info', '🔄 Checking Monday.com connection before resetting sync data...');
+        
+                // Check Monday.com connection first
+                try {
+                    const mondayApiToken = self.config['monday-api-token'];
+                    if (!mondayApiToken) {
+                        self.log('error', '❌ Monday API Token is not set. Cannot reset sync.');
+                        return;
+                    }
+        
+                    // Simple query to test connection
+                    const response = await fetch('https://api.monday.com/v2', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': mondayApiToken
+                        },
+                        body: JSON.stringify({
+                            query: `
+                                query {
+                                    me {
+                                        id
+                                        name
+                                    }
+                                }
+                            `
+                        })
+                    });
+        
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+        
+                    const result = await response.json();
+        
+                    if (result.errors) {
+                        throw new Error(`API error: ${result.errors[0].message}`);
+                    }
+        
+                    self.log('info', `✅ Connection to Monday.com successful. Proceeding with reset.`);
+                } catch (error) {
+                    self.log('error', `❌ Failed to connect to Monday.com: ${error.message}`);
+                    self.log('error', 'Reset sync aborted. Please check your connection and API token.');
+                    return;
+                }
+        
+                // If we reach here, connection is good, proceed with reset
                 self.log('info', '🔄 Resetting sync data and restarting from project overview detection...');
         
                 // Reset key sync-related variables
@@ -277,6 +324,7 @@ module.exports = function (self) {
                     'last-board-sync': 'Never',
                     'board-sync-status': 'Unsynced',
                     'synced-room-info-board': 'Unknown',
+                    'synced-help-requests-board': 'Unknown',
                     'synced-presentation-management-board': 'Unknown',
                     'synced-project-overview-item-id': 'Unknown',
                     'my-room': 'Unknown'
