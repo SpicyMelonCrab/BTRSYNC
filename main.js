@@ -851,6 +851,20 @@ class ModuleInstance extends InstanceBase {
 			if (!presentationBoardItems || presentationBoardItems.length === 0) {
 				throw new Error(`No items found on Presentation Management Board (ID: ${presentationManagementBoardId}).`);
 			}
+
+			// Print the raw list of all presentations to the log
+			this.log('info', `=====================================================`);
+			this.log('info', `RAW PRESENTATIONS LIST (${presentationBoardItems.length} items):`);
+			presentationBoardItems.forEach((item, index) => {
+				this.log('info', `Item ${index + 1}: ID: ${item.id}, Name: ${item.name}`);
+				
+				// Print all fields for each item
+				this.log('info', `  Fields:`);
+				item.fields.forEach(field => {
+					this.log('info', `    ${field.id}: ${field.text}`);
+				});
+			});
+			this.log('info', `=====================================================`);
 	
 			const terminalType = this.config['terminal-type'];
 			const roomFieldId = terminalType === 'type-kit' 
@@ -1141,8 +1155,17 @@ class ModuleInstance extends InstanceBase {
 	parseTime(timeStr, sessionDate = null) {
 		if (!timeStr || timeStr === "N/A") return null;
 	
-		// Use sessionDate if provided, otherwise use current local date
-		const baseDate = sessionDate ? new Date(sessionDate) : new Date();
+		// Create a date object for the current day or specified date
+		let baseDate;
+		if (sessionDate) {
+			// Parse the date parts to ensure we're working with local date
+			const [year, month, day] = sessionDate.split('-').map(Number);
+			// Note: month is 0-indexed in JavaScript Date
+			baseDate = new Date(year, month - 1, day);
+		} else {
+			baseDate = new Date();
+		}
+	
 		if (!baseDate || isNaN(baseDate)) {
 			this.log('error', `Invalid session date provided: ${sessionDate}`);
 			return null;
@@ -1157,7 +1180,7 @@ class ModuleInstance extends InstanceBase {
 			hours = 0;
 		}
 	
-		// Set hours and minutes directly in local time
+		// Set hours and minutes
 		baseDate.setHours(hours, minutes, 0, 0);
 		this.log('debug', `Parsed time '${timeStr}' as local time: ${baseDate.toLocaleString()}`);
 		return baseDate;
