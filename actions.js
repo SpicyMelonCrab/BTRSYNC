@@ -192,8 +192,53 @@ module.exports = function (self) {
         
                 const newPassword = currentPassword + letter;
                 self.setVariableValues({ 'presentation-password-input': newPassword });
-        
                 self.log('info', `Updated password input: ${newPassword}`);
+                
+                // Auto-lookup if password is now 4 characters
+                if (newPassword.length === 4) {
+                    self.log('info', `Password reached 4 characters. Automatically looking up matching presentation...`);
+                    
+                    try {
+                        // Determine the file path based on OS
+                        let baseDir;
+                        if (process.platform === 'win32') {
+                            baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+                        } else {
+                            baseDir = path.join('/var/lib', 'BitCompanionSync');
+                        }
+        
+                        const filePath = path.join(baseDir, 'presentation_sync_data.json');
+                        self.log('debug', `Reading sync data from: ${filePath}`);
+        
+                        // Check if the sync file exists
+                        if (!fs.existsSync(filePath)) {
+                            self.log('error', 'Sync data file not found. Cannot perform lookup.');
+                            return;
+                        }
+        
+                        // Read and parse the JSON file
+                        const fileContent = fs.readFileSync(filePath, 'utf-8');
+                        const syncData = JSON.parse(fileContent);
+                        
+                        if (!syncData.presentations || syncData.presentations.length === 0) {
+                            self.log('warn', 'No presentations found in sync data.');
+                            return;
+                        }
+        
+                        // Look for a presentation with the matching password
+                        const matchingPresentation = syncData.presentations.find(p => p.presenterPassword === newPassword);
+        
+                        if (matchingPresentation) {
+                            const matchedFilePath = matchingPresentation.filePath;
+                            self.log('info', `✅ Matching presentation found! File Path: ${matchedFilePath}`);
+                            self.setVariableValues({ 'current-sr-file-path': matchedFilePath });
+                        } else {
+                            self.log('warn', `No presentation found with the entered password: ${newPassword}`);
+                        }
+                    } catch (error) {
+                        self.log('error', `❌ Error in auto-lookup: ${error.message}`);
+                    }
+                }
             }
         },
         remove_last_letter_from_password: {
@@ -209,9 +254,15 @@ module.exports = function (self) {
                 }
         
                 const newPassword = currentPassword.slice(0, -1);
-                self.setVariableValues({ 'presentation-password-input': newPassword });
+                
+                // Reset the current-sr-file-path variable to "Unknown" when a letter is removed
+                self.setVariableValues({ 
+                    'presentation-password-input': newPassword,
+                    'current-sr-file-path': 'Not Set'
+                });
         
                 self.log('info', `Updated password input after backspace: ${newPassword}`);
+                self.log('info', 'Reset current-sr-file-path to "Not Set"');
             }
         },
         reset_sync: {

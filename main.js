@@ -853,6 +853,7 @@ class ModuleInstance extends InstanceBase {
 			}
 
 			// Print the raw list of all presentations to the log
+			/*
 			this.log('info', `=====================================================`);
 			this.log('info', `RAW PRESENTATIONS LIST (${presentationBoardItems.length} items):`);
 			presentationBoardItems.forEach((item, index) => {
@@ -865,6 +866,7 @@ class ModuleInstance extends InstanceBase {
 				});
 			});
 			this.log('info', `=====================================================`);
+			*/
 	
 			const terminalType = this.config['terminal-type'];
 			const roomFieldId = terminalType === 'type-kit' 
