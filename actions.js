@@ -265,105 +265,105 @@ module.exports = function (self) {
                 self.log('info', 'Reset current-sr-file-path to "Not Set"');
             }
         },
-        reset_sync: {
-            name: 'Reset Sync Data',
-            description: 'Clears all synced variables and forces a fresh start from project overview detection.',
-            options: [],
-            callback: async () => {
-                self.log('info', '🔄 Checking Monday.com connection before resetting sync data...');
-        
-                // Check Monday.com connection first
-                try {
-                    const mondayApiToken = self.config['monday-api-token'];
-                    if (!mondayApiToken) {
-                        self.log('error', '❌ Monday API Token is not set. Cannot reset sync.');
-                        return;
-                    }
-        
-                    // Simple query to test connection
-                    const response = await fetch('https://api.monday.com/v2', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': mondayApiToken
-                        },
-                        body: JSON.stringify({
-                            query: `
-                                query {
-                                    me {
-                                        id
-                                        name
-                                    }
-                                }
-                            `
-                        })
-                    });
-        
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-        
-                    const result = await response.json();
-        
-                    if (result.errors) {
-                        throw new Error(`API error: ${result.errors[0].message}`);
-                    }
-        
-                    self.log('info', `✅ Connection to Monday.com successful. Proceeding with reset.`);
-                } catch (error) {
-                    self.log('error', `❌ Failed to connect to Monday.com: ${error.message}`);
-                    self.log('error', 'Reset sync aborted. Please check your connection and API token.');
-                    return;
-                }
-        
-                // If we reach here, connection is good, proceed with reset
-                self.log('info', '🔄 Resetting sync data and restarting from project overview detection...');
-        
-                // Reset key sync-related variables
-                self.setVariableValues({
-                    'last-board-sync': 'Never',
-                    'board-sync-status': 'Unsynced',
-                    'synced-room-info-board': 'Unknown',
-                    'synced-help-requests-board': 'Unknown',
-                    'synced-presentation-management-board': 'Unknown',
-                    'synced-project-overview-item-id': 'Unknown',
-                    'my-room': 'Unknown'
-                });
-        
-                // Stop any ongoing sync process
-                if (self.syncingProcessInterval) {
-                    clearInterval(self.syncingProcessInterval);
-                    self.syncingProcessInterval = null;
-                }
-        
-                // Clear local cache
-                try {
-                    let baseDir;
-                    if (process.platform === 'win32') {
-                        baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
-                    } else {
-                        baseDir = path.join('/var/lib', 'BitCompanionSync');
-                    }
-                    const filePath = path.join(baseDir, 'presentation_sync_data.json');
-        
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                        self.log('info', `🗑 Deleted cached sync file: ${filePath}`);
-                    } else {
-                        self.log('info', 'No cached sync file found to delete.');
-                    }
-                } catch (error) {
-                    self.log('error', `❌ Error clearing cached sync file: ${error.message}`);
-                }
-        
-                // Reset the last synced project ID
-                self.lastSyncedProjectId = null;
-        
-                // Restart the project overview detection process
-                self.log('info', '🔍 Restarting search for synced project overview...');
-                self.repeatingBoardQuery = setInterval(() => self.findSyncedProjectOverview(), 10000);
+       reset_sync: {
+    name: 'Reset Sync Data',
+    description: 'Clears all synced variables and forces a fresh start from project overview detection.',
+    options: [],
+    callback: async () => {
+        self.log('info', '🔄 Checking Monday.com connection before resetting sync data...');
+
+        // Check Monday.com connection first
+        try {
+            const mondayApiToken = self.config['monday-api-token'];
+            if (!mondayApiToken) {
+                self.log('error', '❌ Monday API Token is not set. Cannot reset sync.');
+                return;
             }
-        },
+
+            // Simple query to test connection
+            const response = await fetch('https://api.monday.com/v2', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': mondayApiToken
+                },
+                body: JSON.stringify({
+                    query: `
+                        query {
+                            me {
+                                id
+                                name
+                            }
+                        }
+                    `
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.errors) {
+                throw new Error(`API error: ${result.errors[0].message}`);
+            }
+
+            self.log('info', `✅ Connection to Monday.com successful. Proceeding with reset.`);
+        } catch (error) {
+            self.log('error', `❌ Failed to connect to Monday.com: ${error.message}`);
+            self.log('error', 'Reset sync aborted. Please check your connection and API token.');
+            return;
+        }
+
+        // If we reach here, connection is good, proceed with reset
+        self.log('info', '🔄 Resetting sync data and restarting from project overview detection...');
+
+        // Reset key sync-related variables
+        self.setVariableValues({
+            'last-board-sync': 'Never',
+            'board-sync-status': 'Unsynced',
+            'synced-room-info-board': 'Unknown',
+            'synced-help-requests-board': 'Unknown',
+            'synced-presentation-management-board': 'Unknown',
+            'synced-project-overview-item-id': 'Unknown',
+            'my-room': 'Unknown'
+        });
+
+        // Stop any ongoing sync process
+        if (self.syncingProcessInterval) {
+            clearInterval(self.syncingProcessInterval);
+            self.syncingProcessInterval = null;
+        }
+
+        // Clear local cache
+        try {
+            let baseDir;
+            if (process.platform === 'win32') {
+                baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+            } else {
+                baseDir = path.join('/var/lib', 'BitCompanionSync');
+            }
+            const filePath = path.join(baseDir, 'presentation_sync_data.json');
+
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                self.log('info', `🗑 Deleted cached sync file: ${filePath}`);
+            } else {
+                self.log('info', 'No cached sync file found to delete.');
+            }
+        } catch (error) {
+            self.log('error', `❌ Error clearing cached sync file: ${error.message}`);
+        }
+
+        // Reset the last synced project ID
+        self.lastSyncedProjectId = null;
+
+        // Restart the project overview detection process
+        self.log('info', '🔍 Restarting search for synced project overview...');
+        self.repeatingBoardQuery = setInterval(() => self.findSyncedProjectOverview(), 10000);
+    }
+},
         lookup_presentation_by_password: {
             name: 'Lookup Presentation by Password',
             description: 'Finds a presentation based on the password input and retrieves its file path.',
