@@ -41,10 +41,6 @@ module.exports = function (self) {
             },
             callback: function (feedback) {
                 const helpRequestStatus = self.getVariableValue('help-request-status') || 'no request';
-        
-                // Force feedback refresh on status change
-                self.checkFeedbacks('help_request_status');
-        
                 return helpRequestStatus === feedback.options.status;
             }
         },

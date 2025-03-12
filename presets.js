@@ -254,6 +254,42 @@ module.exports = function (self) {
                 }
             ]
         },
+        'reset_help_request': {
+            type: 'button',
+            category: 'Support',
+            name: 'Reset LOCAL Help Request', // Using 'name' to match your convention
+            style: {
+                text: 'Reset LOCAL Help', // Show current status
+                size: '14',
+                color: combineRgb(255, 255, 255), // White text
+                bgcolor: combineRgb(255, 165, 0), // Orange background for reset action
+                // Optional: Add an icon if available, e.g., png64: icons.reset_icon
+                // pngalignment: 'center:top',
+                alignment: 'center:center'
+            },
+            steps: [
+                {
+                    down: [{ actionId: 'reset_help_request', options: {} }],
+                    up: []
+                }
+            ],
+            feedbacks: [
+                {
+                    feedbackId: 'help_request_status',
+                    options: { status: 'no request' },
+                    style: {
+                        bgcolor: combineRgb(128, 128, 128) // Gray when no request is active
+                    }
+                },
+                {
+                    feedbackId: 'help_request_status',
+                    options: { status: 'help requested' },
+                    style: {
+                        bgcolor: combineRgb(255, 165, 0) // Orange when help is requested
+                    }
+                }
+            ]
+        },
         // Lookup Presentation by Password (unchanged)
         'lookup_presentation_by_password': {
             type: 'button',
