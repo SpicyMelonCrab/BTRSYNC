@@ -42,6 +42,7 @@ module.exports = function (self) {
 		{ variableId: 'help-request-status', name: 'Help request Status' },
 		{ variableId: 'help-request-timestamp', name: 'Help Request TimeStamp' },
 		{ variableId: 'current-sr-file-path', name: 'Current SR Presentation File Path' },
+		{ variableId: 'current-sr-name', name: 'Current SR Name' }
 		
 
 	])

@@ -65,7 +65,8 @@ class ModuleInstance extends InstanceBase {
 			'presentation-password-input': "",
 			'help-request-status': "no request",
 			'help-request-timestamp': "none",
-			'current-sr-file-path': "Not set"
+			'current-sr-file-path': "Not set",
+			'current-sr-name': "Not set"
 		});
 		 // Collect information on all Kits.
 		 await this.getKits();

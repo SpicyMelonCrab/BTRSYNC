@@ -38,6 +38,8 @@ module.exports = function (self) {
 
                 self.setVariableValues({
                     'presentation-password-input': '', // Clear password
+                    'current-sr-file-path' : 'Not set',
+                    'current-sr-name' : 'Not set',
                     'current-presentation-actual-start-time': 'none',
                     'current-presentation-actual-duration': 'none'
                 });
@@ -68,7 +70,7 @@ module.exports = function (self) {
         
                     // Ensure self.checkFeedbacks exists before calling it
                     if (typeof self.checkFeedbacks === 'function') {
-                        self.checkFeedbacks('help_request_status');
+                        //self.checkFeedbacks('help_request_status');
                         self.log('info', '✅ Feedbacks updated.');
                     } else {
                         self.log('error', '❌ self.checkFeedbacks is not a function. Check initialization.');
@@ -283,8 +285,10 @@ module.exports = function (self) {
         
                         if (matchingPresentation) {
                             const matchedFilePath = matchingPresentation.filePath;
+                            const matchedPresName = matchingPresentation.name;
                             self.log('info', `✅ Matching presentation found! File Path: ${matchedFilePath}`);
                             self.setVariableValues({ 'current-sr-file-path': matchedFilePath });
+                            self.setVariableValues({ 'current-sr-name': matchedPresName });
                         } else {
                             self.log('warn', `No presentation found with the entered password: ${newPassword}`);
                         }
@@ -311,7 +315,8 @@ module.exports = function (self) {
                 // Reset the current-sr-file-path variable to "Unknown" when a letter is removed
                 self.setVariableValues({ 
                     'presentation-password-input': newPassword,
-                    'current-sr-file-path': 'Not Set'
+                    'current-sr-file-path': 'Not Set',
+                    'current-sr-name' : 'Not set'
                 });
         
                 self.log('info', `Updated password input after backspace: ${newPassword}`);
@@ -514,7 +519,7 @@ module.exports = function (self) {
                     'help-request-timestamp': timestampValue
                 });
                 self.log('info', `Help request timestamp created: ${timestampValue}`);
-                self.checkFeedbacks('help_request_status');
+                //self.checkFeedbacks('help_request_status');
         
                 // Update help request status if we at least have a room ID
                 if (myRoomId !== 'Unknown') {
