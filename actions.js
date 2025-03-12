@@ -29,6 +29,55 @@ module.exports = function (self) {
                 self.checkFeedbacks('auto_sync_status');  // Add this line to check feedback
             }
         },
+        end: {
+            name: 'End Current Presentation',
+            description: 'Clears the password and resets actual start time and duration.',
+            options: [],
+            callback: async () => {
+                self.log('info', 'Ending current presentation, clearing password, and resetting times.');
+
+                self.setVariableValues({
+                    'presentation-password-input': '', // Clear password
+                    'current-presentation-actual-start-time': 'none',
+                    'current-presentation-actual-duration': 'none'
+                });
+
+                self.log('info', '✅ Presentation ended. Variables reset.');
+            }
+        },
+        reset_help_request_status: {
+            name: 'Reset Help Request Status',
+            description: 'Resets the help request status back to "no request" and updates feedback.',
+            options: [],
+            callback: async () => {
+                try {
+                    self.log('info', 'Attempting to reset help request status to "no request"...');
+        
+                    // Ensure self.setVariableValues exists before calling it
+                    if (typeof self.setVariableValues === 'function') {
+                        self.setVariableValues({
+                            'help-request-status': 'no request',
+                            'help-request-timestamp': 'none' // Reset timestamp if needed
+                        });
+        
+                        self.log('info', '✅ Help request status and timestamp reset.');
+                    } else {
+                        self.log('error', '❌ self.setVariableValues is not a function. Check initialization.');
+                        return;
+                    }
+        
+                    // Ensure self.checkFeedbacks exists before calling it
+                    if (typeof self.checkFeedbacks === 'function') {
+                        self.checkFeedbacks('help_request_status');
+                        self.log('info', '✅ Feedbacks updated.');
+                    } else {
+                        self.log('error', '❌ self.checkFeedbacks is not a function. Check initialization.');
+                    }
+                } catch (error) {
+                    self.log('error', `❌ Error in reset_help_request_status: ${error.message}`);
+                }
+            }
+        },        
         toggle_time_mode: {
             name: 'Toggle Time Mode',
             description: 'Switches time mode between enabled and disabled.',
