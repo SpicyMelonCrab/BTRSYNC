@@ -1,3 +1,4 @@
+const icons = require('./icons');
 const { combineRgb } = require('@companion-module/base');
 
 module.exports = function (self) {
@@ -203,33 +204,39 @@ module.exports = function (self) {
             ],
             feedbacks: []
         },
-        'three_way_sync_from_sr': {
+        // Help Request button with dynamic image based on status
+        // Updated Help Request button with empty text to show only images
+        'request_help': {
             type: 'button',
-            category: 'Password Control',
-            label: '3 Way Sync from SR',
+            category: 'Support',
+            name: 'Request Help',  // Change 'label' to 'name' to match their format
             style: {
-                text: '3-Way Sync\n$(autosyncmodule:presentation-password-input)',
+                bgcolor: combineRgb(204, 51, 0),  // Move bgcolor up
+                
+                png64: icons.request_help,
+                pngalignment: 'center:top',  // Add pngalignment similar to their format
+                
+                text: '', // Add text instead of empty text
+                alignment: 'center:bottom',  // Add alignment similar to their format
                 size: '14',
                 color: combineRgb(255, 255, 255),
-                bgcolor: combineRgb(0, 153, 204) // Teal-ish for SR sync
             },
             steps: [
                 {
-                    down: [{ actionId: 'three_way_sync_from_sr', options: {} }],
+                    down: [{ actionId: 'request_help', options: {} }],
                     up: []
                 }
             ],
             feedbacks: [
                 {
-                    feedbackId: 'sync_status', // Reuse existing feedback
-                    options: { status: 'Synced' },
+                    feedbackId: 'help_request_status',
+                    options: { status: 'help requested' },
                     style: {
-                        bgcolor: combineRgb(0, 255, 0) // Green when synced
+                        png64: icons.help_on_way
                     }
                 }
             ]
         },
-
         // Lookup Presentation by Password (unchanged)
         'lookup_presentation_by_password': {
             type: 'button',

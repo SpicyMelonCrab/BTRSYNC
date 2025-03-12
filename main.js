@@ -64,6 +64,7 @@ class ModuleInstance extends InstanceBase {
 			'my-room': "Unknown",
 			'presentation-password-input': "",
 			'help-request-status': "no request",
+			'help-request-timestamp': "none",
 			'current-sr-file-path': "Not set"
 		});
 		
@@ -783,14 +784,65 @@ class ModuleInstance extends InstanceBase {
 				this.checkFeedbacks('sync_status');
 				return;
 			}
-	
+
 			// Log identified presentations
 			const completionPercent = calculatedCompletionPercent;
 			
 			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
 			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
 			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
-	
+			
+			// NEW FEATURE: Check help request status and update if necessary
+			const helpRequestStatus = this.getVariableValue('help-request-status') || 'no request';
+			if (helpRequestStatus === 'help requested') {
+				this.log('info', 'Help request status is "help requested". Checking synced help requests board...');
+				
+				const helpRequestsBoardId = this.getVariableValue('synced-help-requests-board');
+				if (!helpRequestsBoardId || helpRequestsBoardId === 'unknown') {
+					this.log('warn', 'Synced help requests board ID is not set or unknown. Cannot process help request status.');
+				} else {
+					// Query the help requests board
+					const helpRequestItems = await this.queryMondayBoard(helpRequestsBoardId);
+					if (!helpRequestItems || helpRequestItems.length === 0) {
+						this.log('warn', `No items found on Help Requests Board (ID: ${helpRequestsBoardId}).`);
+					} else {
+						// Get the timestamp to match
+						const helpRequestTimestamp = this.getVariableValue('help-request-timestamp') || 'none';
+						if (helpRequestTimestamp === 'none') {
+							this.log('warn', 'Help request timestamp is not set. Cannot match help request.');
+						} else {
+							this.log('info', `Looking for help request with timestamp: ${helpRequestTimestamp}`);
+							
+							// Find the item with matching timestamp
+							const matchingItem = helpRequestItems.find(item => {
+								const timestampField = item.fields.find(field => field.id === 'text_mkngc3k7');
+								return timestampField && timestampField.text === helpRequestTimestamp;
+							});
+
+							if (matchingItem) {
+								this.log('info', `Found matching help request item: ${matchingItem.id}`);
+								
+								// Check the help request status field
+								const statusField = matchingItem.fields.find(field => field.id === 'status__1');
+								if (statusField && statusField.text === 'Closed') {
+									this.log('info', 'Help request status is "Closed". Updating help-request-status to "no request".');
+									this.setVariableValues({
+										'help-request-status': 'no request',
+										'help-request-timestamp': 'none' // Optionally reset the timestamp
+									});
+								} else {
+									this.log('info', `Help request status is "${statusField ? statusField.text : 'N/A'}". No update needed.`);
+								}
+							} else {
+								this.log('warn', `No help request item found with timestamp: ${helpRequestTimestamp}`);
+							}
+						}
+					}
+				}
+			} else {
+				this.log('debug', `Help request status is "${helpRequestStatus}". No action required.`);
+			}
+
 			// Update Companion variables
 			this.setVariableValues({
 				// Previous Presentation

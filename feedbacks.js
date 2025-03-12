@@ -1,4 +1,5 @@
-const { combineRgb } = require('@companion-module/base')
+const icons = require('./icons');
+const { combineRgb } = require('@companion-module/base');
 
 module.exports = function (self) {
     self.setFeedbackDefinitions({
@@ -14,6 +15,31 @@ module.exports = function (self) {
                 const actualStartTime = self.getVariableValue('current-presentation-actual-start-time');
                 return actualStartTime !== 'None'; // Active if start time is set
             },
+        },
+        help_request_status: {
+            type: 'boolean',
+            label: 'Help Request Status',
+            description: 'Changes when help has been requested',
+            options: [
+                {
+                    type: 'dropdown',
+                    label: 'Status',
+                    id: 'status',
+                    default: 'help requested',
+                    choices: [
+                        { id: 'no request', label: 'No Request' },
+                        { id: 'help requested', label: 'Help Requested' }
+                    ]
+                }
+            ],
+            defaultStyle: {
+                // This is what will be applied when the feedback condition is true
+                png64: icons.help_on_way
+            },
+            callback: function (feedback) {
+                const helpRequestStatus = self.getVariableValue('help-request-status') || 'no request';
+                return helpRequestStatus === feedback.options.status;
+            }
         },
         presentation_nearing_end: {
             type: 'boolean',
