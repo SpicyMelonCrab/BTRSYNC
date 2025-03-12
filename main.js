@@ -375,7 +375,7 @@ class ModuleInstance extends InstanceBase {
 			// Add more kits as needed
 		];
 	
-		this.log('info', `Kits populated: ${JSON.stringify(this.kitsDropdown)}`);
+		//this.log('info', `Kits populated: ${JSON.stringify(this.kitsDropdown)}`);
 		return this.kitsDropdown;
 	}
 
@@ -387,13 +387,13 @@ class ModuleInstance extends InstanceBase {
 			{ id: 'sr_1', label: 'Speaker Ready 1', value: '8519582928' },
 			{ id: 'sr_2', label: 'Speaker Ready 2', value: '8522666813' },
 			{ id: 'sr_3', label: 'Speaker Ready 3', value: '8522668107' },
-			{ id: 'sr_4', label: 'Speaker Ready 4', value: '8605614091' },
-			{ id: 'sr_5', label: 'Speaker Ready 5', value: '8605614500' },
-			{ id: 'sr_6', label: 'Speaker Ready 6', value: '8605624766' },
+			{ id: 'sr_4', label: 'Speaker Ready 3', value: '8605614091' },
+			{ id: 'sr_3', label: 'Speaker Ready 3', value: '8605614500' },
+			{ id: 'sr_3', label: 'Speaker Ready 3', value: '8605624766' },
 			// Add more speaker readies as needed
 		];
 	
-		this.log('info', `Speaker Readies populated: ${JSON.stringify(this.speakerReadyDropdown)}`);
+		//this.log('info', `Speaker Readies populated: ${JSON.stringify(this.speakerReadyDropdown)}`);
 		return this.speakerReadyDropdown;
 	}
 
