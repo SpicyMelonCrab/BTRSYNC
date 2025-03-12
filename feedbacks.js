@@ -32,15 +32,23 @@ module.exports = function (self) {
                     ]
                 }
             ],
-            defaultStyle: {
-                // This is what will be applied when the feedback condition is true
-                png64: icons.help_on_way
+            style: function (feedback) {
+                const helpRequestStatus = self.getVariableValue('help-request-status') || 'no request';
+        
+                return {
+                    png64: helpRequestStatus === 'help requested' ? icons.help_on_way : icons.request_help
+                };
             },
             callback: function (feedback) {
                 const helpRequestStatus = self.getVariableValue('help-request-status') || 'no request';
+        
+                // Force feedback refresh on status change
+                self.checkFeedbacks('help_request_status');
+        
                 return helpRequestStatus === feedback.options.status;
             }
         },
+        
         presentation_nearing_end: {
             type: 'boolean',
             name: 'Presentation Nearing End',

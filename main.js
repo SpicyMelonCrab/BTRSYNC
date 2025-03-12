@@ -68,6 +68,7 @@ class ModuleInstance extends InstanceBase {
 			'current-sr-file-path': "Not set"
 		});
 		
+		this.checkFeedbacks('help_request_status');
 		 // Collect information on all Kits.
 		 await this.getKits();
 		 await this.getSpeakerReadies();
