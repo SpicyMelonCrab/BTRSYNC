@@ -440,7 +440,7 @@ class ModuleInstance extends InstanceBase {
 			}
 	
 			// Debug: Log number of projects retrieved
-			this.log('debug', `Retrieved ${projects.length} projects from board ${projectsBoardId}`);
+			this.log('info', `Retrieved ${projects.length} projects from board ${projectsBoardId}`);
 	
 			for (const project of projects) {
 				const projectBoardIdField = project.fields.find(field => field.id === 'text_mkn1gxxq'); // PROJECT OVERVIEW BOARD ID
@@ -457,13 +457,13 @@ class ModuleInstance extends InstanceBase {
 							const itemDetails = await this.queryMondayItem(projectItems[0].id);
 							if (!itemDetails) {
 								this.log('warn', `No details retrieved for item ID ${projectItems[0].id}`);
-								return null;
+								continue;
 							}
 	
 							const syncStatusField = itemDetails.fields.find(field => field.id === 'status_mkmwnf9d');
 							if (!syncStatusField || syncStatusField.text !== "Syncing") {
 								this.log('warn', `Project ${itemDetails.id} is not in 'Syncing' state. Status: '${syncStatusField ? syncStatusField.text : 'N/A'}'. Skipping.`);
-								return null;
+								continue;
 							}
 	
 							const tempVariables = {
