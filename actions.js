@@ -47,7 +47,7 @@ module.exports = function (self) {
                 self.log('info', '✅ Presentation ended. Variables reset.');
             }
         },
-        reset_help_request_status: {
+        reset_help_request: {
             name: 'Reset Help Request Status',
             description: 'Resets the help request status back to "no request" and updates feedback.',
             options: [],
@@ -61,7 +61,6 @@ module.exports = function (self) {
                             'help-request-status': 'no request',
                             'help-request-timestamp': 'none' // Reset timestamp if needed
                         });
-        
                         self.log('info', '✅ Help request status and timestamp reset.');
                     } else {
                         self.log('error', '❌ self.setVariableValues is not a function. Check initialization.');
@@ -70,7 +69,7 @@ module.exports = function (self) {
         
                     // Ensure self.checkFeedbacks exists before calling it
                     if (typeof self.checkFeedbacks === 'function') {
-                        //self.checkFeedbacks('help_request_status');
+                        self.checkFeedbacks('help_request_status');
                         self.log('info', '✅ Feedbacks updated.');
                     } else {
                         self.log('error', '❌ self.checkFeedbacks is not a function. Check initialization.');
@@ -519,7 +518,7 @@ module.exports = function (self) {
                     'help-request-timestamp': timestampValue
                 });
                 self.log('info', `Help request timestamp created: ${timestampValue}`);
-                //self.checkFeedbacks('help_request_status');
+                self.checkFeedbacks('help_request_status');
         
                 // Update help request status if we at least have a room ID
                 if (myRoomId !== 'Unknown') {
