@@ -13,16 +13,20 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async init(config) {
+
+		this.log('info', `Info Step 1`);
 		this.config = config
 	
 		this.updateStatus(InstanceStatus.Ok)
 		this.updateActions() // export actions
 		this.updateFeedbacks() // export feedbacks
 		this.updateVariableDefinitions() // export variable definitions
+		this.log('info', `Info Step 2`);
 
 		// Set up presets
         this.setPresetDefinitions(require('./presets')(this));
-	
+		
+		this.log('info', `Info Step 3`);
 		// SET DEFAULT VARIABLES ON FIRST RUN
 		this.setVariableValues({
 			'auto-sync' : 'enabled',
@@ -67,10 +71,11 @@ class ModuleInstance extends InstanceBase {
 			'help-request-timestamp': "none",
 			'current-sr-file-path': "Not set"
 		});
+		this.log('info', `Info Step 4`);
 		 // Collect information on all Kits.
-		 await this.getKits();
-		 await this.getSpeakerReadies();
-
+		 this.getKits();
+		 this.getSpeakerReadies();
+		 this.log('info', `Info Step 5`);
     	this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000); // Sets 'synced-project-overview-item-id' 
 	}
 	
@@ -90,6 +95,7 @@ class ModuleInstance extends InstanceBase {
 	
 
 	async configUpdated(config) {
+		this.log('info', `Config check 1`);
 		this.config = config;
 	
 		// Stop any existing syncing process
@@ -100,9 +106,12 @@ class ModuleInstance extends InstanceBase {
 	
 		// Restart finding synced project
 		if (!this.lastSyncedProjectId) {
-			await this.getKits();
-			await this.getSpeakerReadies();
+			this.log('info', `Config Updated 1`);
+			this.getKits();
+			this.getSpeakerReadies();
+			this.log('info', `Config Updated 2`);
 			this.repeatingBoardQuery = setInterval(() => this.findSyncedProjectOverview(), 10000);
+			this.log('info', `Config Updated 3`);
 		} else {
 			this.log('info', `Skipping re-initialization since project is already synced: ${this.lastSyncedProjectId}`);
 			
@@ -113,8 +122,9 @@ class ModuleInstance extends InstanceBase {
 	
 
 	async queryMondayBoard(boardId) {
+		this.log('info', `Config check 2`);
 		const mondayApiToken = this.config['monday-api-token'];
-	
+		this.log('info', `Config check 3`);
 		if (!mondayApiToken) {
 			this.log('error', 'Monday API Token is not set. Cannot query board.');
 			this.setVariableValues({ 'board-sync-status': 'Last Sync Failed' });
@@ -203,6 +213,7 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async queryMondayItem(itemId) {
+		this.log('info', `Config check 3`);
 		const mondayApiToken = this.config['monday-api-token'];
 	
 		if (!mondayApiToken) {
@@ -277,6 +288,7 @@ class ModuleInstance extends InstanceBase {
 	
 	// Return config fields for web config
 	getConfigFields() {
+		this.log('info', `Get Config 1`);
 		const hasApiKey = this.config && this.config['monday-api-token'];
 
 		return [
@@ -343,51 +355,45 @@ class ModuleInstance extends InstanceBase {
 		];
 	}
 
-	async getKits() {
-		const boardID = "7926688621"; // Hardcoded board ID
+	getKits() {
+		this.log('info', 'Populating kits manually');
+		
+		// Define static kits data
+		this.kitsDropdown = [
+			{ id: 'kit_1', label: 'ECS #1', value: '7934778242' },
+			{ id: 'kit_2', label: 'ECS #2', value: '7934783823' },
+			{ id: 'kit_3', label: 'ECS #3', value: '7934784605' },
+			{ id: 'kit_4', label: 'ECS #4', value: '7934785372' },
+			{ id: 'kit_5', label: 'ECS #5', value: '7934785766' },
+			{ id: 'kit_6', label: 'ECS #6', value: '7934786151' },
+			{ id: 'kit_7', label: 'ECS #7', value: '7934794298' },
+			{ id: 'kit_8', label: 'ECS #8', value: '7934805595' },
+			{ id: 'kit_9', label: 'ECS #9', value: '7934806431' },
+			{ id: 'kit_10', label: 'ECS #10', value: '7934807437' },
+			{ id: 'kit_11', label: 'ECS #11', value: '7934808486' },
+			{ id: 'kit_12', label: 'ECS #12', value: '7934810202' },
+			// Add more kits as needed
+		];
 	
-		this.log('info', `Fetching all items from Board ID: ${boardID}`);
-	
-		const boardData = await this.queryMondayBoard(boardID);
-	
-		if (!boardData || boardData.length === 0) {
-			this.log('warn', `No items found on Board ID: ${boardID}`);
-			this.kitsDropdown = []; // Ensure it's at least an empty array
-			return null;
-		}
-	
-		// Extract necessary fields for dropdown options
-		this.kitsDropdown = boardData.map(item => ({
-			id: item.id,
-			label: item.name,
-			value: item.id
-		}));
-	
-		//this.log('info', `Kits extracted: ${JSON.stringify(this.kitsDropdown)}`);
+		this.log('info', `Kits populated: ${JSON.stringify(this.kitsDropdown)}`);
 		return this.kitsDropdown;
 	}
 
-	async getSpeakerReadies() {
-		const boardID = "8352032319"; // Hardcoded board ID
+	getSpeakerReadies() {
+		this.log('info', 'Populating speaker readies manually');
+		
+		// Define static speaker readies data
+		this.speakerReadyDropdown = [
+			{ id: 'sr_1', label: 'Speaker Ready 1', value: '8519582928' },
+			{ id: 'sr_2', label: 'Speaker Ready 2', value: '8522666813' },
+			{ id: 'sr_3', label: 'Speaker Ready 3', value: '8522668107' },
+			{ id: 'sr_4', label: 'Speaker Ready 4', value: '8605614091' },
+			{ id: 'sr_5', label: 'Speaker Ready 5', value: '8605614500' },
+			{ id: 'sr_6', label: 'Speaker Ready 6', value: '8605624766' },
+			// Add more speaker readies as needed
+		];
 	
-		this.log('info', `Fetching all items from Board ID: ${boardID}`);
-	
-		const boardData = await this.queryMondayBoard(boardID);
-	
-		if (!boardData || boardData.length === 0) {
-			this.log('warn', `No items found on Board ID: ${boardID}`);
-			this.speakerReadyDropdown = []; // Ensure it's at least an empty array
-			return null;
-		}
-	
-		// Extract necessary fields for dropdown options
-		this.speakerReadyDropdown = boardData.map(item => ({
-			id: item.id,
-			label: item.name,
-			value: item.id
-		}));
-	
-		//this.log('info', `Kits extracted: ${JSON.stringify(this.kitsDropdown)}`);
+		this.log('info', `Speaker Readies populated: ${JSON.stringify(this.speakerReadyDropdown)}`);
 		return this.speakerReadyDropdown;
 	}
 
@@ -397,7 +403,7 @@ class ModuleInstance extends InstanceBase {
 			this.log('info', `Skipping redundant query. Last synced project: ${this.lastSyncedProjectId}`);
 			return this.lastSyncedProjectId;
 		}
-	
+		this.log('info', `Config check 4`);
 		const terminalType = this.config['terminal-type'];
 		const selectedKit = this.config['kit-selection'];
 		const selectedSpeakerReady = this.config['speaker-ready-selection'];
@@ -660,6 +666,7 @@ class ModuleInstance extends InstanceBase {
 		}
 	
 		// Fetch polling rate (convert minutes to milliseconds)
+		this.log('info', `Config check 5`);
 		const pollingRateMinutes = this.config['polling-rate-minutes'] || 1;
 		const pollingRateMs = pollingRateMinutes * 60 * 1000;
 	
@@ -717,7 +724,7 @@ class ModuleInstance extends InstanceBase {
 
 			// Write to cache file
 			await this.writeSyncDataToFile(validPresentations);
-
+			this.log('info', `Config check 6`);
 			const terminalType = this.config['terminal-type'];
 			if (terminalType == 'type-speaker-ready'){
 				this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
@@ -732,7 +739,7 @@ class ModuleInstance extends InstanceBase {
 			let previousPresentation = null;
 			let currentPresentation = null;
 			let nextPresentation = null;
-	
+			this.log('info', `Config check 7`);
 			const completionThreshold = this.config['completion-percent-threshold'] || 35; // Get threshold from config
 			let calculatedCompletionPercent = "0"; // Default value
 	
@@ -927,7 +934,7 @@ class ModuleInstance extends InstanceBase {
 			});
 			this.log('info', `=====================================================`);
 			*/
-	
+			this.log('info', `Config check 8`);
 			const terminalType = this.config['terminal-type'];
 			const roomFieldId = terminalType === 'type-kit' 
 				? "connect_boards_mkn2244w" 
@@ -1030,7 +1037,7 @@ class ModuleInstance extends InstanceBase {
 			this.log('warn', `⚠ Cached presentation data not found. Skipping offline sync.`);
 			return;
 		}
-
+		this.log('info', `Config check 9`);
 		const terminalType = this.config['terminal-type'];
 		if (terminalType == 'type-speaker-ready'){
 			this.log('info', `Speaker Ready Mode: Variable Update Skipped`);
@@ -1093,7 +1100,7 @@ class ModuleInstance extends InstanceBase {
 		let previousPresentation = null;
 		let currentPresentation = null;
 		let nextPresentation = null;
-	
+		this.log('info', `Config check 10`);
 		const completionThreshold = this.config['completion-percent-threshold'] || 35; // Default 35%
 	
 		for (let i = 0; i < todayPresentations.length; i++) {
