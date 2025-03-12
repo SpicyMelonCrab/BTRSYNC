@@ -432,10 +432,22 @@ class ModuleInstance extends InstanceBase {
 			if (!projects || projects.length === 0) {
 				this.log('warn', 'No projects found on the projects board.');
 				this.log('warn', "⚠️ API call failed. Switching to offlineSyncEvent.");
-				if (!fs.existsSync('/var/lib/BitCompanionSync/presentation_sync_data.json')) {
-					this.log('warn', 'No offline data found. Skipping offline sync.');
+
+				// Dynamically construct the file path
+				let baseDir;
+				if (process.platform === 'win32') {
+					baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+				} else {
+					baseDir = path.join('/var/lib', 'BitCompanionSync');
+				}
+				const filePath = path.resolve(path.join(baseDir, 'presentation_sync_data.json'));
+				this.log('info', `Checking for offline data at: ${filePath}`);
+	
+				if (!fs.existsSync(filePath)) {
+					this.log('warn', `No offline data found at ${filePath}. Skipping offline sync.`);
 					return null;
 				}
+				
 				await this.offlineSyncEvent();
 				return null;
 			}
