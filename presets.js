@@ -237,6 +237,23 @@ module.exports = function (self) {
                 }
             ]
         },
+        'end_current_presentation': {
+            type: 'button',
+            category: 'Presentation Control',
+            label: 'End Presentation',
+            style: {
+                text: 'End Presentation',
+                size: '14',
+                color: combineRgb(255, 255, 255),
+                bgcolor: combineRgb(255, 0, 0) // Red for emphasis
+            },
+            steps: [
+                {
+                    down: [{ actionId: 'end', options: {} }],
+                    up: []
+                }
+            ]
+        },
         // Lookup Presentation by Password (unchanged)
         'lookup_presentation_by_password': {
             type: 'button',

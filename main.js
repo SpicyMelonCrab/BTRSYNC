@@ -67,8 +67,6 @@ class ModuleInstance extends InstanceBase {
 			'help-request-timestamp': "none",
 			'current-sr-file-path': "Not set"
 		});
-		
-		this.checkFeedbacks('help_request_status');
 		 // Collect information on all Kits.
 		 await this.getKits();
 		 await this.getSpeakerReadies();
@@ -831,6 +829,7 @@ class ModuleInstance extends InstanceBase {
 										'help-request-status': 'no request',
 										'help-request-timestamp': 'none' // Optionally reset the timestamp
 									});
+									this.checkFeedbacks('help_request_status');
 								} else {
 									this.log('info', `Help request status is "${statusField ? statusField.text : 'N/A'}". No update needed.`);
 								}
