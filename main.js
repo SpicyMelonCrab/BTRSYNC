@@ -67,7 +67,9 @@ class ModuleInstance extends InstanceBase {
 			'help-request-timestamp': "none",
 			'current-sr-file-path': "Not set",
 			'current-sr-name': "Not set",
-			"record-most-recent-presentation" : "Unknown"
+			"record-most-recent-presentation-name" : "Unknown",
+			"record-most-recent-presentation-presenter" : "Unknown",
+			"record-most-recent-presentation-start-time" : "Unknown"
 		});
 		 // Collect information on all Kits.
 		 await this.getKits();
@@ -110,6 +112,104 @@ class ModuleInstance extends InstanceBase {
 			
 			// Restart syncing process
 			this.startSyncingProcess();
+		}
+	}
+
+	async updateMostRecentPresentation() {
+		try {
+			// Determine the file path based on OS
+			let baseDir;
+			if (process.platform === 'win32') {
+				baseDir = path.join(process.env.APPDATA || 'C:\\ProgramData', 'BitCompanionSync');
+			} else {
+				baseDir = path.join('/var/lib', 'BitCompanionSync');
+			}
+	
+			const filePath = path.join(baseDir, 'presentation_sync_data.json');
+	
+			// Read the cached file
+			if (!fs.existsSync(filePath)) {
+				this.log('warn', `⚠ Cached presentation data not found at ${filePath}. Setting record-most-recent-presentation-name to 'Unknown'.`);
+				this.setVariableValues({
+					'record-most-recent-presentation-name': 'Unknown',
+					'record-most-recent-presentation-presenter': 'Unknown',
+					'record-most-recent-presentation-start-time': 'Unknown'
+				});
+				return;
+			}
+	
+			let cachedData;
+			try {
+				const fileContent = fs.readFileSync(filePath, 'utf-8');
+				cachedData = JSON.parse(fileContent);
+			} catch (error) {
+				this.log('error', `❌ Error reading cached presentation file: ${error.message}`);
+				this.setVariableValues({
+					'record-most-recent-presentation-name': 'Unknown',
+					'record-most-recent-presentation-presenter': 'Unknown',
+					'record-most-recent-presentation-start-time': 'Unknown'
+				});
+				return;
+			}
+	
+			// Extract presentations
+			const presentations = cachedData.presentations;
+			if (!Array.isArray(presentations) || presentations.length === 0) {
+				this.log('warn', `⚠ No presentations found in cache. Setting record-most-recent-presentation-name to 'Unknown'.`);
+				this.setVariableValues({
+					'record-most-recent-presentation-name': 'Unknown',
+					'record-most-recent-presentation-presenter': 'Unknown',
+					'record-most-recent-presentation-start-time': 'Unknown'
+				});
+				return;
+			}
+	
+			// Convert start times to Date objects
+			presentations.forEach(p => {
+				p.startTime = new Date(p.startTime);
+			});
+	
+			// Sort presentations by start time
+			presentations.sort((a, b) => a.startTime - b.startTime);
+	
+			// Get current local time
+			const now = new Date();
+			const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes in milliseconds
+	
+			// Find the most recent presentation that started more than 5 minutes ago
+			let mostRecentPresentation = null;
+			for (let i = 0; i < presentations.length; i++) {
+				const presentation = presentations[i];
+				if (presentation.startTime <= fiveMinutesAgo) {
+					mostRecentPresentation = presentation;
+				} else if (presentation.startTime > now) {
+					break; // No need to check further if we hit a future presentation
+				}
+			}
+	
+			// Set variables based on the most recent presentation
+			if (mostRecentPresentation) {
+				this.log('info', `Setting record-most-recent-presentation-name to "${mostRecentPresentation.name}"`);
+				this.setVariableValues({
+					'record-most-recent-presentation-name': mostRecentPresentation.name || 'Unknown',
+					'record-most-recent-presentation-presenter': mostRecentPresentation.presenter || 'Unknown',
+					'record-most-recent-presentation-start-time': mostRecentPresentation.startTime ? this.formatTime(mostRecentPresentation.startTime) : 'Unknown'
+				});
+			} else {
+				this.log('warn', `No presentation found that started more than 5 minutes ago. Setting record-most-recent-presentation-name to 'Unknown'.`);
+				this.setVariableValues({
+					'record-most-recent-presentation-name': 'Unknown',
+					'record-most-recent-presentation-presenter': 'Unknown',
+					'record-most-recent-presentation-start-time': 'Unknown'
+				});
+			}
+		} catch (error) {
+			this.log('error', `❌ Unexpected error in updateMostRecentPresentation: ${error.message}`);
+			this.setVariableValues({
+				'record-most-recent-presentation-name': 'Unknown',
+				'record-most-recent-presentation-presenter': 'Unknown',
+				'record-most-recent-presentation-start-time': 'Unknown'
+			});
 		}
 	}
 	
@@ -731,6 +831,7 @@ class ModuleInstance extends InstanceBase {
 
 			// Write to cache file
 			await this.writeSyncDataToFile(validPresentations);
+			await this.updateMostRecentPresentation();
 
 			// NEW FEATURE: Check help request status and update if necessary
 			const helpRequestStatus = this.getVariableValue('help-request-status') || 'no request';
@@ -1069,6 +1170,8 @@ class ModuleInstance extends InstanceBase {
 			this.log('error', `❌ Error reading cached presentation file: ${error.message}`);
 			return;
 		}
+		
+		await this.updateMostRecentPresentation();
 		
 		// 📌 Extract presentations and room ID
 		const { presentations, myRoom } = cachedData;
