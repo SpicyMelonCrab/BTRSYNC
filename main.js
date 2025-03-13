@@ -803,8 +803,13 @@ class ModuleInstance extends InstanceBase {
 	
 			for (let i = 0; i < validPresentations.length; i++) {
 				const presentation = validPresentations[i];
+
+				// Adjust start time for the first presentation of the day by subtracting 5 minutes
+				const effectiveStartTime = i === 0 
+				? new Date(presentation.startTime.getTime() - 5 * 60 * 1000) 
+				: presentation.startTime;
 			
-				if (presentation.startTime <= now && now < presentation.endTime) {
+				if (effectiveStartTime <= now && now < presentation.endTime) {
 					// Only check completion percentage if there's a next presentation available
 					if (i + 1 < validPresentations.length) {
 						calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
@@ -831,7 +836,7 @@ class ModuleInstance extends InstanceBase {
 					calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
 			
 					break;
-				} else if (presentation.startTime > now) {
+				} else if (effectiveStartTime > now) {
 					nextPresentation = presentation;
 					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
 					break;
@@ -1111,8 +1116,12 @@ class ModuleInstance extends InstanceBase {
 	
 		for (let i = 0; i < todayPresentations.length; i++) {
 			const presentation = todayPresentations[i];
-	
-			if (presentation.startTime <= now && now < presentation.endTime) {
+			
+			const effectiveStartTime = i === 0 
+			? new Date(presentation.startTime.getTime() - 5 * 60 * 1000) 
+			: presentation.startTime;
+
+			if (effectiveStartTime <= now && now < presentation.endTime) {
 				// ✅ Check completion percentage
 				if (i + 1 < todayPresentations.length) {
 					const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
@@ -1131,7 +1140,7 @@ class ModuleInstance extends InstanceBase {
 				previousPresentation = i > 0 ? todayPresentations[i - 1] : null;
 				nextPresentation = i + 1 < todayPresentations.length ? todayPresentations[i + 1] : null;
 				break;
-			} else if (presentation.startTime > now) {
+			} else if (effectiveStartTime > now) {
 				nextPresentation = presentation;
 				previousPresentation = i > 0 ? todayPresentations[i - 1] : null;
 				break;
