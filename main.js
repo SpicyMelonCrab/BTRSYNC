@@ -66,7 +66,8 @@ class ModuleInstance extends InstanceBase {
 			'help-request-status': "no request",
 			'help-request-timestamp': "none",
 			'current-sr-file-path': "Not set",
-			'current-sr-name': "Not set"
+			'current-sr-name': "Not set",
+			"record-most-recent-presentation" : "Unknown"
 		});
 		 // Collect information on all Kits.
 		 await this.getKits();
@@ -824,8 +825,8 @@ class ModuleInstance extends InstanceBase {
 							previousPresentation = presentation;
 							currentPresentation = validPresentations[i + 1];
 							nextPresentation = i + 2 < validPresentations.length ? validPresentations[i + 2] : null;
-							this.log('next presentation defined');
-							this.log('exiting loop');
+							//this.log('next presentation defined');
+							//this.log('exiting loop');
 							break;
 						}
 					}
@@ -834,12 +835,12 @@ class ModuleInstance extends InstanceBase {
 					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
 					nextPresentation = i + 1 < validPresentations.length ? validPresentations[i + 1] : null;
 					calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
-					this.log('exiting loop (normal assignment)');
+					//this.log('exiting loop (normal assignment)');
 					break;
 				} else if (effectiveStartTime > now) {
 					nextPresentation = presentation;
 					previousPresentation = i > 0 ? validPresentations[i - 1] : null;
-					this.log('exiting loop (future presentation)');
+					//this.log('exiting loop (future presentation)');
 					break;
 				} else {
 					previousPresentation = presentation;
@@ -850,20 +851,20 @@ class ModuleInstance extends InstanceBase {
 			const timeMode = this.getVariableValue('time-mode') || 'enabled';
 			this.log('timeMode defined');
 			if (timeMode === 'disabled') {
-				this.log('time mode disabled');
+				//this.log('time mode disabled');
 				this.setVariableValues({'last-board-sync': now.toLocaleString()});
-				this.log('set last-board-sync');
+				//this.log('set last-board-sync');
 				this.checkFeedbacks('sync_status');
-				this.log('checked feedbacks');
+				//this.log('checked feedbacks');
 				return;
 			}
-			this.log('proceeding to completionPercent');
+			//this.log('proceeding to completionPercent');
 			const completionPercent = calculatedCompletionPercent;
-			this.log('completionPercent defined');
+			//this.log('completionPercent defined');
 			
-			this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
-			this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
-			this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
+			//this.log('info', `Previous Presentation: ${previousPresentation ? previousPresentation.name : "None"}`);
+			//this.log('info', `Current Presentation: ${currentPresentation ? currentPresentation.name : "None"}`);
+			//this.log('info', `Next Presentation: ${nextPresentation ? nextPresentation.name : "None"}`);
 
 			// Update Companion variables
 			this.setVariableValues({

@@ -42,7 +42,8 @@ module.exports = function (self) {
 		{ variableId: 'help-request-status', name: 'Help request Status' },
 		{ variableId: 'help-request-timestamp', name: 'Help Request TimeStamp' },
 		{ variableId: 'current-sr-file-path', name: 'Current SR Presentation File Path' },
-		{ variableId: 'current-sr-name', name: 'Current SR Name' }
+		{ variableId: 'current-sr-name', name: 'Current SR Name' },
+		{ variableId: 'record-most-recent-presentation', name: 'Stored from REAL Presentation Start time to 5> next presentation start time' }
 		
 
 	])
