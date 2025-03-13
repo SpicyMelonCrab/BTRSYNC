@@ -803,18 +803,23 @@ class ModuleInstance extends InstanceBase {
 	
 			for (let i = 0; i < validPresentations.length; i++) {
 				const presentation = validPresentations[i];
+				
+				const timeThreshold = 5; // Number of minutes presentations will become 'current' early, number of minutes between two presentations that they will activate threshold rule. 
 
 				// Adjust start time for the first presentation of the day by subtracting 5 minutes
-				const effectiveStartTime = i === 0 
-				? new Date(presentation.startTime.getTime() - 5 * 60 * 1000) 
-				: presentation.startTime;
+				const effectiveStartTime = new Date(presentation.startTime.getTime() - timeThreshold * 60 * 1000);
 			
 				if (effectiveStartTime <= now && now < presentation.endTime) {
 					// Only check completion percentage if there's a next presentation available
 					if (i + 1 < validPresentations.length) {
 						calculatedCompletionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
-			
-						if (parseFloat(calculatedCompletionPercent) > completionThreshold) {
+						
+						// Calculate the gap between current endTime and next startTime (in milliseconds)
+						const nextPresentation = validPresentations[i + 1];
+						const timeGap = nextPresentation.startTime - presentation.endTime;
+						const isGapLessThanThreshold = timeGap < timeThreshold * 60 * 1000;
+
+						if (parseFloat(calculatedCompletionPercent) > completionThreshold && isGapLessThanThreshold) {
 							this.log(
 								'info',
 								`Presentation "${presentation.name}" completion percentage of ${calculatedCompletionPercent}% exceeds threshold of ${completionThreshold}%, skipping to next.`
@@ -1117,16 +1122,21 @@ class ModuleInstance extends InstanceBase {
 		for (let i = 0; i < todayPresentations.length; i++) {
 			const presentation = todayPresentations[i];
 			
-			const effectiveStartTime = i === 0 
-			? new Date(presentation.startTime.getTime() - 5 * 60 * 1000) 
-			: presentation.startTime;
+			const timeThreshold = 5; // Number of minutes presentations become 'current' early and gap threshold for skipping
+
+			const effectiveStartTime = new Date(presentation.startTime.getTime() - 5 * 60 * 1000);
 
 			if (effectiveStartTime <= now && now < presentation.endTime) {
 				// ✅ Check completion percentage
 				if (i + 1 < todayPresentations.length) {
 					const completionPercent = this.calculateProgress(presentation.startTime, presentation.endTime);
-	
-					if (parseFloat(completionPercent) > completionThreshold) {
+					
+					// Calculate the gap between current endTime and next startTime (in milliseconds)
+					const nextPresentation = todayPresentations[i + 1];
+					const timeGap = nextPresentation.startTime - presentation.endTime;
+					const isGapLessThanThreshold = timeGap < timeThreshold * 60 * 1000;
+
+					if (parseFloat(completionPercent) > completionThreshold && isGapLessThanThreshold) {
 						this.log('info', `⏩ Skipping "${presentation.name}" (Completion: ${completionPercent}%) - Moving to next.`);
 						previousPresentation = presentation;
 						currentPresentation = todayPresentations[i + 1];
